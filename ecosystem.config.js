@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: "vts-be",
-      script: "./app.js",
+      script: "./server.js",
       watch: false,
       env: {
         NODE_ENV: "production",
