@@ -1,0 +1,66 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to server
+        run: |
+          ssh -tt ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
+            "REPO_URL='${{ secrets.REPO_URL }}' APP_PARENT='/var/www' BRANCH='main' bash -s" << 'EOF'
+            set -euo pipefail
+
+            # Lấy tên repo từ REPO_URL và tạo APP_DIR động
+            REPO_BASENAME="$(basename "${REPO_URL%%\?*}")"
+            REPO_NAME="${REPO_BASENAME%.git}"
+            APP_DIR="$APP_PARENT/$REPO_NAME"
+
+            mkdir -p "$APP_DIR"
+            cd "$APP_DIR"
+
+            # Clone lần đầu, ngược lại fetch/pull
+            if [ ! -d .git ]; then
+              echo "[Deploy] First time. Cloning..."
+              git clone --branch "$BRANCH" --depth 1 "$REPO_URL" .
+              CHANGED_FILES="package.json"   # đảm bảo cài deps lần đầu
+            else
+              echo "[Deploy] Updating..."
+              git fetch origin "$BRANCH"
+              CHANGED_FILES=$(git diff --name-only HEAD..origin/"$BRANCH" || true)
+              git pull --ff-only origin "$BRANCH"
+            fi
+
+            # Chỉ cài deps khi lần đầu hoặc package/lockfile đổi
+            if echo "${CHANGED_FILES:-}" | grep -qE '(^|/)(package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$'; then
+              echo "[Deps] Installing..."
+              if [ -f package-lock.json ]; then
+                npm ci
+              else
+                npm install
+              fi
+            else
+              echo "[Deps] No changes. Skip install."
+            fi
+
+            echo "[PM2] Restarting..."
+            pm2 restart ecosystem.config.js || pm2 start ecosystem.config.js
+
+            echo "[Done] Deploy finished."
+            exit 0
+          EOF
