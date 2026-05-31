@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: "meekula-be",
+      name: "vts-be",
       script: "./app.js",
       watch: false,
       env: {
