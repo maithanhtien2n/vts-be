@@ -43,6 +43,31 @@ router.put('/:id', adminOnly, async (req, res) => {
   }
 });
 
+// GET /api/users/pending  (admin only)
+router.get('/pending', adminOnly, async (req, res) => {
+  try {
+    const users = await User.find({ status: 'pending' }).select('-password');
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// PUT /api/users/:id/approve  (admin only)
+router.put('/:id/approve', adminOnly, async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { status: 'active' },
+      { new: true }
+    ).select('-password');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // DELETE /api/users/:id  (admin only)
 router.delete('/:id', adminOnly, async (req, res) => {
   try {

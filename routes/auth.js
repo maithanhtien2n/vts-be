@@ -14,9 +14,46 @@ router.post('/login', async (req, res) => {
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
+    if (user.status === 'pending') {
+      return res.status(403).json({ message: 'ບັນຊີຂອງທ່ານລໍຖ້າການອະນຸຍາດຈາກຜູ້ດູແລລະບົບ' });
+    }
+    if (user.status === 'rejected') {
+      return res.status(403).json({ message: 'ບັນຊີຂອງທ່ານຖືກປະຕິເສດ' });
+    }
     res.json({
       token: sign(user._id),
-      user: { _id: user._id, username: user.username, displayName: user.displayName, role: user.role },
+      user: { _id: user._id, username: user.username, email: user.email, displayName: user.displayName, role: user.role, status: user.status },
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/auth/login/email
+router.post('/login/email', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+    let user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user) {
+      const username = email.split('@')[0] + '_' + Date.now();
+      user = await User.create({ username, email: email.toLowerCase().trim(), displayName: email.split('@')[0], password, role: 'staff', status: 'pending' });
+      return res.status(403).json({ message: 'ບັນຊີຂອງທ່ານລໍຖ້າການອະນຸຍາດຈາກຜູ້ດູແລລະບົບ' });
+    }
+    if (user.status === 'pending') {
+      return res.status(403).json({ message: 'ບັນຊີຂອງທ່ານລໍຖ້າການອະນຸຍາດຈາກຜູ້ດູແລລະບົບ' });
+    }
+    if (user.status === 'rejected') {
+      return res.status(403).json({ message: 'ບັນຊີຂອງທ່ານຖືກປະຕິເສດ' });
+    }
+    if (!(await user.comparePassword(password))) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+    res.json({
+      token: sign(user._id),
+      user: { _id: user._id, username: user.username, email: user.email, displayName: user.displayName, role: user.role, status: user.status },
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
