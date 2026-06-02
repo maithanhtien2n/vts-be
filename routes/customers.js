@@ -178,7 +178,11 @@ router.get('/export/excel', async (req, res) => {
       { header: 'Last Contacted At', key: 'lastContactedAt', width: 20 }
     ];
 
-    sheet.getRow(1).font = { bold: true };
+    const headerRow = sheet.getRow(1);
+    headerRow.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'none' };
+      cell.font = { color: { argb: 'FF000000' } };
+    });
 
     customers.forEach(c => {
       sheet.addRow({

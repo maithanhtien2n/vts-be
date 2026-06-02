@@ -15,6 +15,7 @@ const customerSchema = new mongoose.Schema({
   notes: { type: String, default: '' },
   assignedStaff: { type: String, default: '' },
   images: [{ type: String }],
+  contactedAt: { type: Date },
   lastContactedBy: { type: String, default: '' },
   lastContactedAt: { type: Date },
   contactLog: [contactLogSchema]
