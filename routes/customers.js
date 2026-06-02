@@ -95,7 +95,15 @@ router.post('/', async (req, res) => {
 // PUT update customer
 router.put('/:id', async (req, res) => {
   try {
-    const customer = await Customer.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true })
+    const body = { ...req.body };
+    if (body.images) {
+      const now = new Date();
+      body.images = body.images.map(img => ({
+        ...(typeof img === 'string' ? { url: img } : img),
+        updatedAt: now
+      }));
+    }
+    const customer = await Customer.findByIdAndUpdate(req.params.id, body, { new: true, runValidators: true })
       .populate('projects', 'name');
     if (!customer) return res.status(404).json({ message: 'Not found' });
     res.json(customer);
@@ -136,12 +144,14 @@ router.post('/:id/contact', async (req, res) => {
 // POST upload images
 router.post('/:id/images', upload.array('images', 10), async (req, res) => {
   try {
-    const paths = req.files.map(f => `/uploads/${f.filename}`);
-    const customer = await Customer.findByIdAndUpdate(
+    const now = new Date();
+    const objs = req.files.map(f => ({ url: `/uploads/${f.filename}`, createdAt: now, updatedAt: now }));
+    let customer = await Customer.findByIdAndUpdate(
       req.params.id,
-      { $push: { images: { $each: paths } } },
+      { $push: { images: { $each: objs } } },
       { new: true }
     );
+    customer.images = customer.images.map(i => typeof i === 'string' ? { url: i } : i);
     res.json({ images: customer.images });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -152,8 +162,10 @@ router.post('/:id/images', upload.array('images', 10), async (req, res) => {
 router.delete('/:id/images', async (req, res) => {
   try {
     const { imageUrl } = req.body;
-    await Customer.findByIdAndUpdate(req.params.id, { $pull: { images: imageUrl } });
-    res.json({ message: 'Image removed' });
+    const customer = await Customer.findById(req.params.id);
+    customer.images = customer.images.filter(i => (typeof i === 'string' ? i : i.url) !== imageUrl);
+    await customer.save();
+    res.json({ images: customer.images });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

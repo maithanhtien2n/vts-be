@@ -14,12 +14,18 @@ const customerSchema = new mongoose.Schema({
   projects: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Project' }],
   notes: { type: String, default: '' },
   assignedStaff: { type: String, default: '' },
-  images: [{ type: String }],
+  images: { type: [mongoose.Schema.Types.Mixed], default: [] },
   contactedAt: { type: Date },
   lastContactedBy: { type: String, default: '' },
   lastContactedAt: { type: Date },
   contactLog: [contactLogSchema]
 }, { timestamps: true });
+
+customerSchema.post('init', function () {
+  if (this.images && this.images.length) {
+    this.images = this.images.map(i => typeof i === 'string' ? { url: i } : i);
+  }
+});
 
 customerSchema.pre('save', async function (next) {
   if (this.isNew && !this.no) {
