@@ -3,11 +3,13 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const path = require("path");
+const passport = require("./middleware/passport");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(passport.initialize());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 mongoose

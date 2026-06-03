@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const jwt = require('jsonwebtoken');
+const passport = require('../middleware/passport');
 const User = require('../models/User');
 const { authenticate } = require('../middleware/auth');
 
@@ -91,8 +92,28 @@ router.post('/signup', async (req, res) => {
 
 // GET /api/auth/me
 router.get('/me', authenticate, (req, res) => {
-  const { _id, username, displayName, role } = req.user;
-  res.json({ _id, username, displayName, role });
+  const { _id, username, displayName, email, role, avatar } = req.user;
+  res.json({ _id, username, displayName, email, role, avatar });
+});
+
+// GET /api/auth/google — initiate Google OAuth
+router.get('/google', (req, res, next) => {
+  if (!process.env.GOOGLE_CLIENT_ID) return res.status(501).json({ message: 'Google OAuth not configured' });
+  passport.authenticate('google', { scope: ['profile', 'email'], session: false })(req, res, next);
+});
+
+// GET /api/auth/google/callback — Google OAuth callback
+router.get('/google/callback', (req, res, next) => {
+  if (!process.env.GOOGLE_CLIENT_ID) return res.status(501).json({ message: 'Google OAuth not configured' });
+  passport.authenticate('google', { session: false, failureRedirect: (process.env.FRONTEND_URL || 'http://localhost:5173') + '/login' })(req, res, next);
+}, (req, res) => {
+  const token = sign(req.user._id);
+  const user = {
+    _id: req.user._id, username: req.user.username, email: req.user.email,
+    displayName: req.user.displayName, role: req.user.role, status: req.user.status, avatar: req.user.avatar,
+  };
+  const frontend = process.env.FRONTEND_URL || 'http://localhost:5173';
+  res.redirect(`${frontend}/login?token=${token}&user=${encodeURIComponent(JSON.stringify(user))}`);
 });
 
 module.exports = router;
