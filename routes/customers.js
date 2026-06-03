@@ -193,7 +193,7 @@ router.get('/export/excel', async (req, res) => {
     const headerRow = sheet.getRow(1);
     headerRow.eachCell(cell => {
       cell.fill = { type: 'pattern', pattern: 'none' };
-      cell.font = { name: 'Phetsarath OP', size: 11, color: { argb: 'FF000000' } };
+      cell.font = { name: 'Phetsarath OT', size: 11, color: { argb: 'FF000000' } };
     });
 
     customers.forEach(c => {
@@ -207,7 +207,7 @@ router.get('/export/excel', async (req, res) => {
         notes: c.notes,
         contactedAt: c.contactedAt ? new Date(c.contactedAt).toLocaleString('th-TH') : ''
       });
-      row.eachCell(cell => { cell.font = { name: 'Phetsarath OP', size: 11 }; });
+      row.eachCell(cell => { cell.font = { name: 'Phetsarath OT', size: 11 }; });
     });
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -258,7 +258,25 @@ router.post('/import/excel', (req, res, next) => {
       return res.status(400).json({ message: 'ເບີໂທ ແລະ ຊື່ ແມ່ນຈຳເປັນ (Phone & Name required)' });
     }
 
-    // Pre-fetch all projects for lookup
+    // Collect all unique project names from import file
+    const importProjectNames = new Set();
+    sheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      const vals = row.values;
+      const pn = colMap.project ? String(vals[colMap.project] || '').trim() : '';
+      if (pn) importProjectNames.add(pn);
+    });
+
+    // Auto-create missing projects
+    const existingProjects = await Project.find({}).lean();
+    const existingNameMap = {};
+    existingProjects.forEach(p => { existingNameMap[p.name.toLowerCase()] = true; });
+    const toCreate = [...importProjectNames].filter(n => !existingNameMap[n.toLowerCase()]);
+    if (toCreate.length) {
+      await Project.insertMany(toCreate.map(name => ({ name })));
+    }
+
+    // Re-fetch all projects with their IDs
     const allProjects = await Project.find({}).lean();
     const projectNameMap = {};
     allProjects.forEach(p => { projectNameMap[p.name.toLowerCase()] = p._id; });
