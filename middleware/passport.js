@@ -24,7 +24,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
         googleId: profile.id,
         avatar: profile.photos?.[0]?.value || '',
         role: 'staff',
-        status: 'active',
+        status: 'pending',
       });
       done(null, user);
     } catch (err) {

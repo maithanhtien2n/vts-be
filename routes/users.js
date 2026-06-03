@@ -7,8 +7,50 @@ router.use(authenticate);
 // GET /api/users  (admin only)
 router.get('/', adminOnly, async (req, res) => {
   try {
-    const users = await User.find({ status: 'active' }).select('-password');
+    const filter = { status: 'active', deactivated: { $ne: true } };
+    if (req.query.all === '1') delete filter.deactivated;
+    const users = await User.find(filter).select('-password');
     res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// GET /api/users/deactivated  (admin only)
+router.get('/deactivated', adminOnly, async (req, res) => {
+  try {
+    const users = await User.find({ status: 'active', deactivated: true }).select('-password');
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// PUT /api/users/:id/deactivate  (admin only)
+router.put('/:id/deactivate', adminOnly, async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { deactivated: true },
+      { new: true }
+    ).select('-password');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// PUT /api/users/:id/reactivate  (admin only)
+router.put('/:id/reactivate', adminOnly, async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { deactivated: false },
+      { new: true }
+    ).select('-password');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json(user);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -56,9 +98,11 @@ router.get('/pending', adminOnly, async (req, res) => {
 // PUT /api/users/:id/approve  (admin only)
 router.put('/:id/approve', adminOnly, async (req, res) => {
   try {
+    const update = { status: 'active' };
+    if (req.body.role) update.role = req.body.role;
     const user = await User.findByIdAndUpdate(
       req.params.id,
-      { status: 'active' },
+      update,
       { new: true }
     ).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });

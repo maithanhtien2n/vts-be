@@ -10,6 +10,7 @@ const userSchema = new mongoose.Schema({
   avatar: { type: String, default: '' },
   role: { type: String, enum: ['admin', 'staff'], default: 'staff' },
   status: { type: String, enum: ['active', 'pending', 'rejected'], default: 'active' },
+  deactivated: { type: Boolean, default: false },
 }, { timestamps: true });
 
 userSchema.pre('save', async function (next) {

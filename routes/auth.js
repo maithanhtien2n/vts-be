@@ -107,12 +107,20 @@ router.get('/google/callback', (req, res, next) => {
   if (!process.env.GOOGLE_CLIENT_ID) return res.status(501).json({ message: 'Google OAuth not configured' });
   passport.authenticate('google', { session: false, failureRedirect: (process.env.FRONTEND_URL || 'http://localhost:5173') + '/login' })(req, res, next);
 }, (req, res) => {
+  const frontend = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+  if (req.user.status === 'pending') {
+    return res.redirect(`${frontend}/login?error=${encodeURIComponent('ບັນຊີຂອງທ່ານລໍຖ້າການອະນຸຍາດຈາກຜູ້ດູແລລະບົບ')}`);
+  }
+  if (req.user.status === 'rejected') {
+    return res.redirect(`${frontend}/login?error=${encodeURIComponent('ບັນຊີຂອງທ່ານຖືກປະຕິເສດ')}`);
+  }
+
   const token = sign(req.user._id);
   const user = {
     _id: req.user._id, username: req.user.username, email: req.user.email,
     displayName: req.user.displayName, role: req.user.role, status: req.user.status, avatar: req.user.avatar,
   };
-  const frontend = process.env.FRONTEND_URL || 'http://localhost:5173';
   res.redirect(`${frontend}/login?token=${token}&user=${encodeURIComponent(JSON.stringify(user))}`);
 });
 
