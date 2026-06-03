@@ -42,7 +42,6 @@ app.use("/auth", require("./routes/auth"));
 app.use("/users", require("./routes/users"));
 app.use("/customers", require("./routes/customers"));
 app.use("/projects", require("./routes/projects"));
-app.use("/staff", require("./routes/staff"));
 app.use("/customer-types", require("./routes/customerTypes").router);
 
 const PORT = process.env.PORT || 5000;
