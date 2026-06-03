@@ -181,14 +181,13 @@ router.get('/export/excel', async (req, res) => {
 
     sheet.columns = [
       { header: 'No.', key: 'no', width: 8 },
-      { header: 'Phone', key: 'phone', width: 16 },
-      { header: 'Name', key: 'name', width: 24 },
-      { header: 'Type', key: 'customerType', width: 20 },
-      { header: 'Projects', key: 'projects', width: 24 },
-      { header: 'Notes', key: 'notes', width: 30 },
-      { header: 'Staff', key: 'assignedStaff', width: 16 },
-      { header: 'Last Contacted By', key: 'lastContactedBy', width: 20 },
-      { header: 'Last Contacted At', key: 'lastContactedAt', width: 20 }
+      { header: 'ເບີໂທ', key: 'phone', width: 16 },
+      { header: 'ຊື່ ແລະ ນາມສະກຸນ', key: 'name', width: 24 },
+      { header: 'ປະເພດ', key: 'customerType', width: 20 },
+      { header: 'ໂຄງການ', key: 'projects', width: 24 },
+      { header: 'ພະນັກງານ', key: 'assignedStaff', width: 16 },
+      { header: 'ໝາຍເຫດ', key: 'notes', width: 30 },
+      { header: 'ວັນທີທັກ', key: 'contactedAt', width: 20 }
     ];
 
     const headerRow = sheet.getRow(1);
@@ -204,10 +203,9 @@ router.get('/export/excel', async (req, res) => {
         name: c.name,
         customerType: TYPE_LABELS[c.customerType] || c.customerType,
         projects: c.projects.map(p => p.name).join(', '),
-        notes: c.notes,
         assignedStaff: c.assignedStaff,
-        lastContactedBy: c.lastContactedBy,
-        lastContactedAt: c.lastContactedAt ? new Date(c.lastContactedAt).toLocaleString('th-TH') : ''
+        notes: c.notes,
+        contactedAt: c.contactedAt ? new Date(c.contactedAt).toLocaleString('th-TH') : ''
       });
       row.eachCell(cell => { cell.font = { name: 'Phetsarath OP', size: 11 }; });
     });
