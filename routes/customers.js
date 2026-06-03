@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const ExcelJS = require('exceljs');
 const Customer = require('../models/Customer');
+const Project = require('../models/Project');
 const upload = require('../middleware/upload');
 
 const TYPE_LABELS = {
@@ -193,11 +194,11 @@ router.get('/export/excel', async (req, res) => {
     const headerRow = sheet.getRow(1);
     headerRow.eachCell(cell => {
       cell.fill = { type: 'pattern', pattern: 'none' };
-      cell.font = { color: { argb: 'FF000000' } };
+      cell.font = { name: 'Phetsarath OP', size: 11, color: { argb: 'FF000000' } };
     });
 
     customers.forEach(c => {
-      sheet.addRow({
+      const row = sheet.addRow({
         no: c.no,
         phone: c.phone,
         name: c.name,
@@ -208,6 +209,7 @@ router.get('/export/excel', async (req, res) => {
         lastContactedBy: c.lastContactedBy,
         lastContactedAt: c.lastContactedAt ? new Date(c.lastContactedAt).toLocaleString('th-TH') : ''
       });
+      row.eachCell(cell => { cell.font = { name: 'Phetsarath OP', size: 11 }; });
     });
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -220,7 +222,13 @@ router.get('/export/excel', async (req, res) => {
 });
 
 // POST import Excel
-router.post('/import/excel', upload.single('file'), async (req, res) => {
+router.post('/import/excel', (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ message: err.message });
+    if (!req.file) return res.status(400).json({ message: 'ກະລຸນາເລືອກໄຟລ໌ (No file uploaded)' });
+    next();
+  });
+}, async (req, res) => {
   try {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(req.file.path);
@@ -229,28 +237,60 @@ router.post('/import/excel', upload.single('file'), async (req, res) => {
     const TYPE_REVERSE = Object.fromEntries(Object.entries(TYPE_LABELS).map(([k, v]) => [v, k]));
     const results = { created: 0, updated: 0, errors: [] };
 
-    sheet.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return;
-      const [, no, phone, name, typeLabel, , notes, assignedStaff] = row.values;
-      if (!phone || !name) return;
+    // Read header row to map columns by name
+    const headerRow = sheet.getRow(1);
+    const headerValues = headerRow.values;
+    const colMap = {};
+    if (headerValues && typeof headerValues === 'object') {
+      for (let i = 1; i <= headerRow.cellCount; i++) {
+        const v = headerValues[i];
+        if (!v) continue;
+        const s = String(v).trim().toLowerCase();
+        if (/ເບີ|โทร|phone|tel|mobile/i.test(s)) colMap.phone = i;
+        else if (/ຊື່|ชื่อ|name|ນາມສະກຸນ/i.test(s)) colMap.name = i;
+        else if (/ປະເພດ|ประเภท|type|customer.?type/i.test(s)) colMap.type = i;
+        else if (/ໂຄງການ|โครงการ|project/i.test(s)) colMap.project = i;
+        else if (/ພະນັກງານ|พนักงาน|staff|assigned/i.test(s)) colMap.staff = i;
+        else if (/ໝາຍເຫດ|หมายเหตุ|note|notes/i.test(s)) colMap.notes = i;
+        else if (/ວັນທີ|วันที่|contact|date|ທັກ/i.test(s)) colMap.contactedAt = i;
+      }
+    }
 
-      const customerType = TYPE_REVERSE[typeLabel] || 'new';
-      results.created++;
-    });
+    if (!colMap.phone && !colMap.name) {
+      return res.status(400).json({ message: 'ເບີໂທ ແລະ ຊື່ ແມ່ນຈຳເປັນ (Phone & Name required)' });
+    }
+
+    // Pre-fetch all projects for lookup
+    const allProjects = await Project.find({}).lean();
+    const projectNameMap = {};
+    allProjects.forEach(p => { projectNameMap[p.name.toLowerCase()] = p._id; });
 
     const rows = [];
     sheet.eachRow((row, rowNumber) => {
       if (rowNumber === 1) return;
       const vals = row.values;
-      const phone = vals[2] ? String(vals[2]).trim() : null;
-      const name = vals[3] ? String(vals[3]).trim() : null;
+      const phone = colMap.phone ? String(vals[colMap.phone] || '').trim() : '';
+      const name = colMap.name ? String(vals[colMap.name] || '').trim() : '';
       if (!phone || !name) return;
+
+      const projectName = colMap.project ? String(vals[colMap.project] || '').trim() : '';
+      const projectId = projectName ? projectNameMap[projectName.toLowerCase()] : undefined;
+
+      let contactedAt;
+      if (colMap.contactedAt && vals[colMap.contactedAt]) {
+        const raw = String(vals[colMap.contactedAt]).trim();
+        const d = new Date(raw);
+        if (!isNaN(d.getTime())) contactedAt = d;
+      }
+
       rows.push({
         phone,
         name,
-        customerType: TYPE_REVERSE[vals[4]] || 'new',
-        notes: vals[6] ? String(vals[6]) : '',
-        assignedStaff: vals[7] ? String(vals[7]) : ''
+        customerType: colMap.type ? (TYPE_REVERSE[String(vals[colMap.type]).trim()] || 'new') : 'new',
+        projects: projectId ? [projectId] : [],
+        notes: colMap.notes ? String(vals[colMap.notes] || '') : '',
+        assignedStaff: colMap.staff ? String(vals[colMap.staff] || '') : '',
+        ...(contactedAt ? { contactedAt } : {})
       });
     });
 
@@ -261,7 +301,8 @@ router.post('/import/excel', upload.single('file'), async (req, res) => {
 
     res.json({ message: `Imported ${rows.length} customers`, count: rows.length });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error('Import error:', err);
+    res.status(500).json({ message: err.message || 'ເກີດຂໍ້ຜິດພາດ' });
   }
 });
 
