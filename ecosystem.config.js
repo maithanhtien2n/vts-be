@@ -6,12 +6,11 @@ module.exports = {
       watch: false,
       env: {
         NODE_ENV: "production",
-        MONGODB_URI:
-          "mongodb://admin:tn26052024@110.172.28.201:27017/vts-db?authSource=admin",
-        PORT: 31526,
-        GOOGLE_CLIENT_ID: env.GOOGLE_CLIENT_ID,
-        GOOGLE_CLIENT_SECRET: env.GOOGLE_CLIENT_SECRET,
-        GOOGLE_CALLBACK_URL: env.GOOGLE_CALLBACK_URL,
+        MONGODB_URI: process.env.MONGODB_URI,
+        PORT: process.env.PORT || 31526,
+        GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+        GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+        GOOGLE_CALLBACK_URL: process.env.GOOGLE_CALLBACK_URL,
       },
     },
   ],
