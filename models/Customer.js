@@ -18,7 +18,8 @@ const customerSchema = new mongoose.Schema({
   contactedAt: { type: Date },
   lastContactedBy: { type: String, default: '' },
   lastContactedAt: { type: Date },
-  contactLog: [contactLogSchema]
+  contactLog: [contactLogSchema],
+  updatedBy: { type: String, default: '' }
 }, { timestamps: true });
 
 customerSchema.post('init', function () {

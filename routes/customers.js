@@ -99,10 +99,12 @@ router.put('/:id', async (req, res) => {
     const body = { ...req.body };
     if (body.images) {
       const now = new Date();
-      body.images = body.images.map(img => ({
-        ...(typeof img === 'string' ? { url: img } : img),
-        updatedAt: now
-      }));
+      body.images = body.images.map(img => {
+        const obj = typeof img === 'string' ? { url: img } : { ...img };
+        if (!obj.createdAt) obj.createdAt = now;
+        obj.updatedAt = now;
+        return obj;
+      });
     }
     const customer = await Customer.findByIdAndUpdate(req.params.id, body, { new: true, runValidators: true })
       .populate('projects', 'name');
@@ -146,14 +148,12 @@ router.post('/:id/contact', async (req, res) => {
 router.post('/:id/images', upload.array('images', 10), async (req, res) => {
   try {
     const now = new Date();
-    const objs = req.files.map(f => ({ url: `/uploads/${f.filename}`, createdAt: now, updatedAt: now }));
-    let customer = await Customer.findByIdAndUpdate(
-      req.params.id,
-      { $push: { images: { $each: objs } } },
-      { new: true }
-    );
-    customer.images = customer.images.map(i => typeof i === 'string' ? { url: i } : i);
-    res.json({ images: customer.images });
+    const uploadedBy = req.body.uploadedBy || '';
+    const objs = req.files.map(f => ({ url: `/uploads/${f.filename}`, createdAt: now, updatedAt: now, uploadedBy }));
+    await Customer.findByIdAndUpdate(req.params.id, { $push: { images: { $each: objs } } });
+    let cust = await Customer.findById(req.params.id);
+    cust.images = (cust.images || []).map(i => typeof i === 'string' ? { url: i } : i);
+    res.json({ images: cust.images });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
