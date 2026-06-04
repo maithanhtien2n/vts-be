@@ -173,6 +173,12 @@ router.delete('/:id/images', async (req, res) => {
 });
 
 // GET export Excel
+function formatDate(d) {
+  const dt = new Date(d);
+  if (isNaN(dt)) return '';
+  return `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()} ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+}
+
 router.get('/export/excel', async (req, res) => {
   try {
     const customers = await Customer.find({}).populate('projects', 'name');
@@ -205,7 +211,7 @@ router.get('/export/excel', async (req, res) => {
         projects: c.projects.map(p => p.name).join(', '),
         assignedStaff: c.assignedStaff,
         notes: c.notes,
-        contactedAt: c.contactedAt ? new Date(c.contactedAt).toLocaleString('th-TH') : ''
+        contactedAt: c.contactedAt ? formatDate(c.contactedAt) : ''
       });
       row.eachCell(cell => { cell.font = { name: 'Phetsarath OT', size: 11 }; });
     });
