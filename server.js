@@ -17,15 +17,16 @@ mongoose
   .then(async () => {
     console.log("MongoDB connected");
     const User = require("./models/User");
-    const exists = await User.findOne({ username: "admin" });
-    if (!exists) {
+    const exists = await User.findOne({ role: "admin" });
+    if (!exists && process.env.ADMIN_EMAIL) {
       await User.create({
         username: "admin",
         displayName: "Administrator",
-        password: "admin123",
+        email: process.env.ADMIN_EMAIL,
         role: "admin",
+        status: "active",
       });
-      console.log("Default admin created: admin / admin123");
+      console.log(`Default admin created for: ${process.env.ADMIN_EMAIL}`);
     }
     // Auto-seed customer types if collection is empty
     const CustomerType = require("./models/CustomerType");

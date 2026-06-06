@@ -12,10 +12,24 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
     callbackURL: process.env.GOOGLE_CALLBACK_URL || '/auth/google/callback',
   }, async (accessToken, refreshToken, profile, done) => {
     try {
+      // 1. Match by Google ID
       let user = await User.findOne({ googleId: profile.id });
       if (user) return done(null, user);
 
       const email = profile.emails?.[0]?.value || '';
+
+      // 2. Match by email — links Google ID to existing account (e.g. seeded admin)
+      if (email) {
+        user = await User.findOne({ email });
+        if (user) {
+          user.googleId = profile.id;
+          if (!user.avatar) user.avatar = profile.photos?.[0]?.value || '';
+          await user.save();
+          return done(null, user);
+        }
+      }
+
+      // 3. Create new pending account
       const base = email.split('@')[0] || profile.id;
       user = await User.create({
         username: base + '_google',

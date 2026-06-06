@@ -126,31 +126,4 @@ router.delete('/:id', adminOnly, async (req, res) => {
   }
 });
 
-// PUT /api/users/:id/password
-router.put('/:id/password', async (req, res) => {
-  try {
-    const isSelf = req.params.id === req.user._id.toString();
-    const isAdmin = req.user.role === 'admin';
-    if (!isSelf && !isAdmin) {
-      return res.status(403).json({ message: 'Forbidden' });
-    }
-
-    const user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    if (isSelf && !isAdmin) {
-      const { oldPassword } = req.body;
-      if (!(await user.comparePassword(oldPassword))) {
-        return res.status(401).json({ message: 'Wrong current password' });
-      }
-    }
-
-    user.password = req.body.newPassword;
-    await user.save();
-    res.json({ message: 'Password updated' });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
 module.exports = router;
