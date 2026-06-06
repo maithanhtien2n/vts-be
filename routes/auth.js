@@ -99,7 +99,9 @@ router.get('/me', authenticate, (req, res) => {
 // GET /api/auth/google — initiate Google OAuth
 router.get('/google', (req, res, next) => {
   if (!process.env.GOOGLE_CLIENT_ID) return res.status(501).json({ message: 'Google OAuth not configured' });
-  passport.authenticate('google', { scope: ['profile', 'email'], session: false })(req, res, next);
+  const opts = { scope: ['profile', 'email'], session: false };
+  if (req.query.prompt) opts.prompt = req.query.prompt;
+  passport.authenticate('google', opts)(req, res, next);
 });
 
 // GET /api/auth/google/callback — Google OAuth callback
