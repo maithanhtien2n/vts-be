@@ -34,10 +34,20 @@ router.get('/', async (req, res) => {
   }
 });
 
+function slugify(str) {
+  return (str || '').toLowerCase().replace(/\s+/g, '_').replace(/[^\w]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+}
+
 // POST / — create
 router.post('/', async (req, res) => {
   try {
-    const type = await CustomerType.create(req.body);
+    const body = { ...req.body };
+    if (!body.value && body.label) {
+      const base = slugify(body.label);
+      const exists = await CustomerType.findOne({ value: base });
+      body.value = exists ? `${base}_${Date.now()}` : base;
+    }
+    const type = await CustomerType.create(body);
     res.status(201).json(type);
   } catch (err) {
     res.status(400).json({ message: err.message });

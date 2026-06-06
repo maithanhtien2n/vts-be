@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const schema = new mongoose.Schema({
-  value:  { type: String, required: true, unique: true, trim: true },
+  value:  { type: String, unique: true, sparse: true, trim: true },
   label:  { type: String, required: true, trim: true },
   color:  { type: String, default: '#1877F2' },
   icon:   { type: String, default: 'fas fa-user' },
