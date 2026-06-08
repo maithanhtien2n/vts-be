@@ -42,7 +42,7 @@ router.get('/', async (req, res) => {
     }
     if (type) {
       const types = Array.isArray(type) ? type : type.split(',').map(t => t.trim()).filter(Boolean);
-      query.customerType = types.length === 1 ? types[0] : { $in: types };
+      query.customerType = { $in: types };
     }
     if (project) {
       const projects = Array.isArray(project) ? project : project.split(',').map(p => p.trim()).filter(Boolean);
@@ -208,7 +208,7 @@ router.get('/export/excel', async (req, res) => {
         no: c.no,
         phone: c.phone,
         name: c.name,
-        customerType: TYPE_LABELS[c.customerType] || c.customerType,
+        customerType: (Array.isArray(c.customerType) ? c.customerType : [c.customerType]).map(t => TYPE_LABELS[t] || t).join(', '),
         projects: c.projects.map(p => p.name).join(', '),
         assignedStaff: c.assignedStaff,
         notes: c.notes,

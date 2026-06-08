@@ -10,7 +10,7 @@ const customerSchema = new mongoose.Schema({
   no: { type: Number },
   phone: { type: String, required: true, trim: true },
   name: { type: String, required: true, trim: true },
-  customerType: { type: String, default: 'new' },
+  customerType: { type: [String], default: ['new'] },
   projects: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Project' }],
   notes: { type: String, default: '' },
   assignedStaff: { type: String, default: '' },
@@ -25,6 +25,12 @@ const customerSchema = new mongoose.Schema({
 customerSchema.post('init', function () {
   if (this.images && this.images.length) {
     this.images = this.images.map(i => typeof i === 'string' ? { url: i } : i);
+  }
+  // migrate old single-string customerType to array
+  if (typeof this.customerType === 'string') {
+    this.customerType = this.customerType ? [this.customerType] : ['new'];
+  } else if (!Array.isArray(this.customerType) || this.customerType.length === 0) {
+    this.customerType = ['new'];
   }
 });
 
