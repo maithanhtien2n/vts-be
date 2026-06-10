@@ -11,6 +11,13 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ['admin', 'staff'], default: 'staff' },
   status: { type: String, enum: ['active', 'pending', 'rejected'], default: 'active' },
   deactivated: { type: Boolean, default: false },
+  permissions: {
+    view:   { type: Boolean, default: true },
+    edit:   { type: Boolean, default: false },
+    insert: { type: Boolean, default: false },
+    delete: { type: Boolean, default: false },
+    update: { type: Boolean, default: false },
+  },
 }, { timestamps: true });
 
 userSchema.pre('save', async function (next) {

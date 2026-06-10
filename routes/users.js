@@ -72,10 +72,12 @@ router.post('/', adminOnly, async (req, res) => {
 // PUT /api/users/:id  (admin only)
 router.put('/:id', adminOnly, async (req, res) => {
   try {
-    const { username, displayName, role } = req.body;
+    const { username, displayName, role, permissions } = req.body;
+    const updateData = { username, displayName, role };
+    if (permissions !== undefined) updateData.permissions = permissions;
     const user = await User.findByIdAndUpdate(
       req.params.id,
-      { username, displayName, role },
+      updateData,
       { new: true, runValidators: true }
     ).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -100,6 +102,7 @@ router.put('/:id/approve', adminOnly, async (req, res) => {
   try {
     const update = { status: 'active' };
     if (req.body.role) update.role = req.body.role;
+    if (req.body.permissions) update.permissions = req.body.permissions;
     const user = await User.findByIdAndUpdate(
       req.params.id,
       update,
