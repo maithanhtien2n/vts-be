@@ -58,4 +58,32 @@ router.delete('/logo', authenticate, adminOnly, async (req, res) => {
   }
 });
 
+const COL_ORDER_KEY = 'colOrder';
+
+// GET /settings/col-order  — authenticated, returns global column order
+router.get('/col-order', authenticate, async (req, res) => {
+  try {
+    const s = await Setting.findOne({ key: COL_ORDER_KEY });
+    res.json({ colOrder: s ? JSON.parse(s.value) : null });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// PUT /settings/col-order  — admin only, saves global column order
+router.put('/col-order', authenticate, adminOnly, async (req, res) => {
+  try {
+    const { colOrder } = req.body;
+    if (!Array.isArray(colOrder)) return res.status(400).json({ message: 'colOrder must be array' });
+    await Setting.findOneAndUpdate(
+      { key: COL_ORDER_KEY },
+      { value: JSON.stringify(colOrder) },
+      { upsert: true, new: true }
+    );
+    res.json({ colOrder });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports = router;

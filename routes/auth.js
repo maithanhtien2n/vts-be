@@ -8,8 +8,8 @@ const sign = (id) => jwt.sign({ id }, SECRET, { expiresIn: '7d' });
 
 // GET /api/auth/me
 router.get('/me', authenticate, (req, res) => {
-  const { _id, username, displayName, email, role, avatar, permissions } = req.user;
-  res.json({ _id, username, displayName, email, role, avatar, permissions });
+  const { _id, username, displayName, email, role, avatar, permissions, assignedProjects } = req.user;
+  res.json({ _id, username, displayName, email, role, avatar, permissions, assignedProjects });
 });
 
 // GET /api/auth/google — initiate Google OAuth
@@ -39,6 +39,7 @@ router.get('/google/callback', (req, res, next) => {
     _id: req.user._id, username: req.user.username, email: req.user.email,
     displayName: req.user.displayName, role: req.user.role, status: req.user.status,
     avatar: req.user.avatar, permissions: req.user.permissions,
+    assignedProjects: req.user.assignedProjects,
   };
   res.redirect(`${frontend}/login?token=${token}&user=${encodeURIComponent(JSON.stringify(user))}`);
 });

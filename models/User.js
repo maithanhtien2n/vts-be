@@ -18,6 +18,7 @@ const userSchema = new mongoose.Schema({
     delete: { type: Boolean, default: false },
     update: { type: Boolean, default: false },
   },
+  assignedProjects: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Project' }],
 }, { timestamps: true });
 
 userSchema.pre('save', async function (next) {

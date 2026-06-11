@@ -4,6 +4,9 @@ const ExcelJS = require('exceljs');
 const Customer = require('../models/Customer');
 const Project = require('../models/Project');
 const upload = require('../middleware/upload');
+const { authenticate } = require('../middleware/auth');
+
+router.use(authenticate);
 
 const TYPE_LABELS = {
   new: 'ลูกค้าใหม่',
@@ -44,9 +47,19 @@ router.get('/', async (req, res) => {
       const types = Array.isArray(type) ? type : type.split(',').map(t => t.trim()).filter(Boolean);
       query.customerType = { $in: types };
     }
+    // Staff with assignedProjects can only see customers from their projects
+    const isStaff = req.user.role === 'staff';
+    const staffProjects = isStaff && req.user.assignedProjects?.length
+      ? req.user.assignedProjects.map(p => p.toString())
+      : null;
+
     if (project) {
-      const projects = Array.isArray(project) ? project : project.split(',').map(p => p.trim()).filter(Boolean);
-      query.projects = projects.length === 1 ? projects[0] : { $in: projects };
+      let requested = Array.isArray(project) ? project : project.split(',').map(p => p.trim()).filter(Boolean);
+      if (staffProjects) requested = requested.filter(p => staffProjects.includes(p));
+      if (requested.length) query.projects = requested.length === 1 ? requested[0] : { $in: requested };
+      else if (staffProjects) query.projects = { $in: [] };
+    } else if (staffProjects) {
+      query.projects = { $in: staffProjects };
     }
     if (staff) {
       const staffList = Array.isArray(staff) ? staff : staff.split(',').map(s => s.trim()).filter(Boolean);
