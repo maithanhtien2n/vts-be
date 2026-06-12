@@ -21,11 +21,17 @@ const upload = multer({
   limits: { fileSize: 3 * 1024 * 1024 },
 });
 
-// GET /settings  — public, returns { logoVersion }
+// GET /settings  — public, returns { logoVersion, appName }
 router.get('/', async (req, res) => {
   try {
-    const s = await Setting.findOne({ key: LOGO_KEY });
-    res.json({ logoVersion: s ? Number(s.value) : null });
+    const [logo, name] = await Promise.all([
+      Setting.findOne({ key: LOGO_KEY }),
+      Setting.findOne({ key: 'appName' }),
+    ]);
+    res.json({
+      logoVersion: logo ? Number(logo.value) : null,
+      appName: name ? name.value : null,
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -53,6 +59,22 @@ router.delete('/logo', authenticate, adminOnly, async (req, res) => {
     const filePath = path.join(__dirname, '../uploads', LOGO_FILE);
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     res.json({ logoVersion: null });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// PUT /settings/app-name  — admin only
+router.put('/app-name', authenticate, adminOnly, async (req, res) => {
+  try {
+    const { appName } = req.body;
+    if (!appName?.trim()) return res.status(400).json({ message: 'appName required' });
+    await Setting.findOneAndUpdate(
+      { key: 'appName' },
+      { value: appName.trim() },
+      { upsert: true, new: true }
+    );
+    res.json({ appName: appName.trim() });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
