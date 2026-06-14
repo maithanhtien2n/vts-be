@@ -47,13 +47,34 @@ router.get('/', async (req, res) => {
       const types = Array.isArray(type) ? type : type.split(',').map(t => t.trim()).filter(Boolean);
       query.customerType = { $in: types };
     }
-    // Staff with assignedProjects can only see customers from their projects
-    const isStaff = req.user.role === 'staff';
+    const isStaff   = req.user.role === 'staff';
+    const isPartner = req.user.role === 'partner';
+
+    // Staff: restrict to assignedProjects only
     const staffProjects = isStaff
       ? (req.user.assignedProjects?.map(p => p.toString()) ?? [])
       : null;
 
-    if (project) {
+    if (isPartner) {
+      // Partner sees: customers in their assignedProjects OR assigned to them by name
+      const partnerProjects = (req.user.assignedProjects ?? []).map(p => p.toString());
+      const partnerName     = req.user.displayName || req.user.username || '';
+
+      // If a project filter was requested, clamp to partner's allowed projects
+      if (project) {
+        let requested = Array.isArray(project) ? project : project.split(',').map(p => p.trim()).filter(Boolean);
+        requested = requested.filter(p => partnerProjects.includes(p));
+        const orClauses = [];
+        if (requested.length)  orClauses.push({ projects: { $in: requested } });
+        if (partnerName)       orClauses.push({ assignedStaff: partnerName });
+        query.$or = orClauses.length ? orClauses : [{ _id: null }];
+      } else {
+        const orClauses = [];
+        if (partnerProjects.length) orClauses.push({ projects: { $in: partnerProjects } });
+        if (partnerName)            orClauses.push({ assignedStaff: partnerName });
+        if (orClauses.length) query.$or = orClauses;
+      }
+    } else if (project) {
       let requested = Array.isArray(project) ? project : project.split(',').map(p => p.trim()).filter(Boolean);
       if (staffProjects) requested = requested.filter(p => staffProjects.includes(p));
       if (requested.length) query.projects = requested.length === 1 ? requested[0] : { $in: requested };

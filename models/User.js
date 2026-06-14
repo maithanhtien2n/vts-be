@@ -8,7 +8,7 @@ const userSchema = new mongoose.Schema({
   password: { type: String },
   googleId: { type: String, sparse: true, unique: true },
   avatar: { type: String, default: '' },
-  role: { type: String, enum: ['admin', 'staff'], default: 'staff' },
+  role: { type: String, enum: ['admin', 'super_admin', 'staff', 'partner'], default: 'staff' },
   status: { type: String, enum: ['active', 'pending', 'rejected'], default: 'active' },
   deactivated: { type: Boolean, default: false },
   permissions: {

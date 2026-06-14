@@ -2,17 +2,25 @@ const express = require('express');
 const router = express.Router();
 const Project = require('../models/Project');
 const upload  = require('../middleware/upload');
+const { authenticate, adminOnly } = require('../middleware/auth');
+
+router.use(authenticate);
 
 router.get('/', async (req, res) => {
   try {
-    const projects = await Project.find({ active: true }).sort({ name: 1 });
+    const query = { active: true };
+    if (['staff', 'partner'].includes(req.user.role)) {
+      const allowed = (req.user.assignedProjects ?? []).map(p => p.toString());
+      query._id = { $in: allowed };
+    }
+    const projects = await Project.find(query).sort({ name: 1 });
     res.json(projects);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', adminOnly, async (req, res) => {
   try {
     const project = await Project.create(req.body);
     res.status(201).json(project);
@@ -24,7 +32,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', adminOnly, async (req, res) => {
   try {
     const project = await Project.findByIdAndUpdate(req.params.id, req.body, { new: true });
     res.json(project);
@@ -33,7 +41,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', adminOnly, async (req, res) => {
   try {
     await Project.findByIdAndUpdate(req.params.id, { active: false });
     res.json({ message: 'Deleted' });

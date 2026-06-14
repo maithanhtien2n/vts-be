@@ -104,6 +104,7 @@ router.put('/:id/approve', adminOnly, async (req, res) => {
     const update = { status: 'active' };
     if (req.body.role) update.role = req.body.role;
     if (req.body.permissions) update.permissions = req.body.permissions;
+    if (req.body.assignedProjects !== undefined) update.assignedProjects = req.body.assignedProjects;
     const user = await User.findByIdAndUpdate(
       req.params.id,
       update,

@@ -18,8 +18,10 @@ async function authenticate(req, res, next) {
   }
 }
 
+const ADMIN_ROLES = ['admin', 'super_admin'];
+
 function adminOnly(req, res, next) {
-  if (req.user?.role !== 'admin') {
+  if (!ADMIN_ROLES.includes(req.user?.role)) {
     return res.status(403).json({ message: 'Admin only' });
   }
   next();
