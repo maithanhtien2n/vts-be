@@ -49,8 +49,8 @@ router.get('/', async (req, res) => {
     }
     // Staff with assignedProjects can only see customers from their projects
     const isStaff = req.user.role === 'staff';
-    const staffProjects = isStaff && req.user.assignedProjects?.length
-      ? req.user.assignedProjects.map(p => p.toString())
+    const staffProjects = isStaff
+      ? (req.user.assignedProjects?.map(p => p.toString()) ?? [])
       : null;
 
     if (project) {
