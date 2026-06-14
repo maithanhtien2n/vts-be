@@ -56,6 +56,22 @@ router.put('/:id/reactivate', adminOnly, async (req, res) => {
   }
 });
 
+// PUT /api/users/me  (any authenticated user — update own phones)
+router.put('/me', async (req, res) => {
+  try {
+    const { phones } = req.body;
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { phones },
+      { new: true }
+    ).select('-password');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json(user);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
 // POST /api/users  (admin only)
 router.post('/', adminOnly, async (req, res) => {
   try {
@@ -72,10 +88,11 @@ router.post('/', adminOnly, async (req, res) => {
 // PUT /api/users/:id  (admin only)
 router.put('/:id', adminOnly, async (req, res) => {
   try {
-    const { username, displayName, role, permissions, assignedProjects } = req.body;
+    const { username, displayName, role, permissions, assignedProjects, phones } = req.body;
     const updateData = { username, displayName, role };
     if (permissions !== undefined) updateData.permissions = permissions;
     if (assignedProjects !== undefined) updateData.assignedProjects = assignedProjects;
+    if (phones !== undefined) updateData.phones = phones;
     const user = await User.findByIdAndUpdate(
       req.params.id,
       updateData,
