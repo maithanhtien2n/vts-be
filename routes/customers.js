@@ -33,7 +33,7 @@ const TYPE_LABELS = {
 // GET all customers
 router.get('/', async (req, res) => {
   try {
-    const { search, type, project, staff, page = 1, limit = 50 } = req.query;
+    const { search, type, project, staff, dateFrom, dateTo, page = 1, limit = 50 } = req.query;
     const query = {};
 
     if (search) {
@@ -66,6 +66,11 @@ router.get('/', async (req, res) => {
       query.assignedStaff = staffList.length === 1
         ? { $regex: staffList[0], $options: 'i' }
         : { $in: staffList };
+    }
+    if (dateFrom || dateTo) {
+      query.createdAt = {};
+      if (dateFrom) query.createdAt.$gte = new Date(dateFrom);
+      if (dateTo)   query.createdAt.$lte = new Date(dateTo + 'T23:59:59.999Z');
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
