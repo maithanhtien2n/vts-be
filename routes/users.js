@@ -1,8 +1,23 @@
 const router = require('express').Router();
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 const { authenticate, adminOnly } = require('../middleware/auth');
 
 router.use(authenticate);
+
+async function emitStaffNotif(req, name, action) {
+  if (!req.user) return;
+  try {
+    const notif = await Notification.create({
+      targetType: 'staff', customerName: name,
+      updatedBy: req.user.displayName || req.user.username, action,
+    });
+    req.app.get('io')?.to('admins').emit('customer-notification', {
+      _id: notif._id, targetType: 'staff', customerName: name,
+      updatedBy: req.user.displayName || req.user.username, action, createdAt: notif.createdAt,
+    });
+  } catch {}
+}
 
 // GET /users/staff-list — minimal name+phones for all authenticated users (staff lookup in HomeView)
 router.get('/staff-list', async (req, res) => {
@@ -95,6 +110,7 @@ router.post('/', adminOnly, async (req, res) => {
     const user = await User.create({ username, displayName, password, role });
     const { _id, username: u, displayName: d, role: r } = user;
     res.status(201).json({ _id, username: u, displayName: d, role: r });
+    emitStaffNotif(req, displayName || username, 'create');
   } catch (err) {
     const msg = err.code === 11000 ? 'Username already exists' : err.message;
     res.status(400).json({ message: msg });
@@ -116,6 +132,7 @@ router.put('/:id', adminOnly, async (req, res) => {
     ).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(user);
+    emitStaffNotif(req, user.displayName || user.username, 'update');
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -159,6 +176,7 @@ router.delete('/:id', adminOnly, async (req, res) => {
     const user = await User.findByIdAndDelete(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json({ message: 'Deleted' });
+    emitStaffNotif(req, user.displayName || user.username, 'delete');
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

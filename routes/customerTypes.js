@@ -1,6 +1,24 @@
 const express = require('express');
 const router = express.Router();
 const CustomerType = require('../models/CustomerType');
+const Notification = require('../models/Notification');
+const { authenticate } = require('../middleware/auth');
+
+router.use(authenticate);
+
+async function emitTypeNotif(req, name, action) {
+  if (!req.user) return;
+  try {
+    const notif = await Notification.create({
+      targetType: 'customer_type', customerName: name,
+      updatedBy: req.user.displayName || req.user.username, action,
+    });
+    req.app.get('io')?.to('admins').emit('customer-notification', {
+      _id: notif._id, targetType: 'customer_type', customerName: name,
+      updatedBy: req.user.displayName || req.user.username, action, createdAt: notif.createdAt,
+    });
+  } catch {}
+}
 
 const SEED = [
   { value: 'new',             label: 'ລູກຄ້າໃໝ່',           color: '#1565C0', icon: 'fas fa-user-plus',           order: 0  },
@@ -49,6 +67,7 @@ router.post('/', async (req, res) => {
     }
     const type = await CustomerType.create(body);
     res.status(201).json(type);
+    emitTypeNotif(req, type.label, 'create');
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -60,6 +79,7 @@ router.put('/:id', async (req, res) => {
     const type = await CustomerType.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
     if (!type) return res.status(404).json({ message: 'Not found' });
     res.json(type);
+    emitTypeNotif(req, type.label, 'update');
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -71,6 +91,7 @@ router.delete('/:id', async (req, res) => {
     const type = await CustomerType.findByIdAndDelete(req.params.id);
     if (!type) return res.status(404).json({ message: 'Not found' });
     res.json({ message: 'Deleted' });
+    emitTypeNotif(req, type.label, 'delete');
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

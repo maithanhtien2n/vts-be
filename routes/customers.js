@@ -32,7 +32,7 @@ function computeChanges(before, body) {
 }
 
 async function emitCustomerNotif(req, customer, action, changes = []) {
-  if (!['staff', 'partner'].includes(req.user?.role)) return;
+  if (!req.user) return;
   try {
     const notif = await Notification.create({
       customerId:    customer._id,

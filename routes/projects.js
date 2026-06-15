@@ -1,10 +1,25 @@
 const express = require('express');
 const router = express.Router();
 const Project = require('../models/Project');
+const Notification = require('../models/Notification');
 const upload  = require('../middleware/upload');
 const { authenticate, adminOnly } = require('../middleware/auth');
 
 router.use(authenticate);
+
+async function emitProjectNotif(req, name, action) {
+  if (!req.user) return;
+  try {
+    const notif = await Notification.create({
+      targetType: 'project', customerName: name,
+      updatedBy: req.user.displayName || req.user.username, action,
+    });
+    req.app.get('io')?.to('admins').emit('customer-notification', {
+      _id: notif._id, targetType: 'project', customerName: name,
+      updatedBy: req.user.displayName || req.user.username, action, createdAt: notif.createdAt,
+    });
+  } catch {}
+}
 
 router.get('/', async (req, res) => {
   try {
@@ -24,6 +39,7 @@ router.post('/', adminOnly, async (req, res) => {
   try {
     const project = await Project.create(req.body);
     res.status(201).json(project);
+    emitProjectNotif(req, project.name, 'create');
   } catch (err) {
     const msg = err.code === 11000
       ? 'ຊື່ໂຄງການນີ້ມີຢູ່ແລ້ວ / Project name already exists'
@@ -36,6 +52,7 @@ router.put('/:id', adminOnly, async (req, res) => {
   try {
     const project = await Project.findByIdAndUpdate(req.params.id, req.body, { new: true });
     res.json(project);
+    emitProjectNotif(req, project.name, 'update');
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -43,8 +60,10 @@ router.put('/:id', adminOnly, async (req, res) => {
 
 router.delete('/:id', adminOnly, async (req, res) => {
   try {
+    const project = await Project.findById(req.params.id);
     await Project.findByIdAndUpdate(req.params.id, { active: false });
     res.json({ message: 'Deleted' });
+    if (project) emitProjectNotif(req, project.name, 'delete');
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

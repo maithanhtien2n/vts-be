@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const schema = new mongoose.Schema({
-  targetType:   { type: String, enum: ['customer', 'owner'], default: 'customer' },
+  targetType:   { type: String, enum: ['customer', 'owner', 'project', 'staff', 'customer_type'], default: 'customer' },
   customerId:   { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
   customerName: { type: String },
   customerPhone:{ type: String },

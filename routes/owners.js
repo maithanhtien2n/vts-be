@@ -8,7 +8,7 @@ const { authenticate } = require('../middleware/auth');
 router.use(authenticate);
 
 async function emitOwnerNotif(req, owner, action) {
-  if (!['staff', 'partner'].includes(req.user?.role)) return;
+  if (!req.user) return;
   try {
     const notif = await Notification.create({
       targetType:   'owner',
