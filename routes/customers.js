@@ -3,8 +3,57 @@ const router = express.Router();
 const ExcelJS = require('exceljs');
 const Customer = require('../models/Customer');
 const Project = require('../models/Project');
+const Notification = require('../models/Notification');
 const upload = require('../middleware/upload');
 const { authenticate } = require('../middleware/auth');
+
+const TRACKED_FIELDS = {
+  name:          'ຊື່',
+  phone:         'ເບີໂທ',
+  customerType:  'ປະເພດ',
+  notes:         'ໝາຍເຫດ',
+  assignedStaff: 'ພະນັກງານ',
+  ownerName:     'ເຈົ້າຂອງ',
+};
+
+function computeChanges(before, body) {
+  const changes = [];
+  for (const [key, label] of Object.entries(TRACKED_FIELDS)) {
+    if (!Object.prototype.hasOwnProperty.call(body, key)) continue;
+    let from = before ? before[key] : undefined;
+    let to   = body[key];
+    if (Array.isArray(from)) from = from.join(', ');
+    if (Array.isArray(to))   to   = to.join(', ');
+    from = from == null ? '' : String(from).trim();
+    to   = to   == null ? '' : String(to).trim();
+    if (from !== to) changes.push({ field: label, from, to });
+  }
+  return changes;
+}
+
+async function emitCustomerNotif(req, customer, action, changes = []) {
+  if (!['staff', 'partner'].includes(req.user?.role)) return;
+  try {
+    const notif = await Notification.create({
+      customerId:    customer._id,
+      customerName:  customer.name,
+      customerPhone: customer.phone,
+      updatedBy:     req.user.displayName || req.user.username,
+      action,
+      changes,
+    });
+    req.app.get('io')?.to('admins').emit('customer-notification', {
+      _id:           notif._id,
+      customerId:    customer._id,
+      customerName:  customer.name,
+      customerPhone: customer.phone,
+      updatedBy:     req.user.displayName || req.user.username,
+      action,
+      changes,
+      createdAt:     notif.createdAt,
+    });
+  } catch {}
+}
 
 router.use(authenticate);
 
@@ -128,6 +177,7 @@ router.post('/', async (req, res) => {
     await customer.save();
     await customer.populate('projects', 'name');
     res.status(201).json(customer);
+    emitCustomerNotif(req, customer, 'create');
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -146,10 +196,13 @@ router.put('/:id', async (req, res) => {
         return obj;
       });
     }
+    const before = await Customer.findById(req.params.id).lean();
     const customer = await Customer.findByIdAndUpdate(req.params.id, body, { new: true, runValidators: true })
       .populate('projects', 'name');
     if (!customer) return res.status(404).json({ message: 'Not found' });
     res.json(customer);
+    const changes = computeChanges(before, body);
+    emitCustomerNotif(req, customer, 'update', changes);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -158,8 +211,11 @@ router.put('/:id', async (req, res) => {
 // DELETE customer
 router.delete('/:id', async (req, res) => {
   try {
+    const customer = await Customer.findById(req.params.id);
+    if (!customer) return res.status(404).json({ message: 'Not found' });
     await Customer.findByIdAndDelete(req.params.id);
     res.json({ message: 'Deleted' });
+    emitCustomerNotif(req, customer, 'delete');
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -179,6 +235,8 @@ router.post('/:id/contact', async (req, res) => {
       { new: true }
     ).populate('projects', 'name');
     res.json(customer);
+    const changes = note ? [{ field: 'ບັນທຶກ', from: '', to: note }] : [];
+    emitCustomerNotif(req, customer, 'contact', changes);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -194,6 +252,7 @@ router.post('/:id/images', upload.array('images', 10), async (req, res) => {
     let cust = await Customer.findById(req.params.id);
     cust.images = (cust.images || []).map(i => typeof i === 'string' ? { url: i } : i);
     res.json({ images: cust.images });
+    emitCustomerNotif(req, cust, 'upload_image');
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -207,6 +266,7 @@ router.delete('/:id/images', async (req, res) => {
     customer.images = customer.images.filter(i => (typeof i === 'string' ? i : i.url) !== imageUrl);
     await customer.save();
     res.json({ images: customer.images });
+    emitCustomerNotif(req, customer, 'delete_image');
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

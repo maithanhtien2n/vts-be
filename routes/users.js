@@ -4,6 +4,22 @@ const { authenticate, adminOnly } = require('../middleware/auth');
 
 router.use(authenticate);
 
+// GET /users/staff-list — minimal name+phones for all authenticated users (staff lookup in HomeView)
+router.get('/staff-list', async (req, res) => {
+  try {
+    const users = await User.find({ status: 'active', deactivated: { $ne: true } })
+      .select('displayName username phones role');
+    res.json(users.map(u => ({
+      _id:   u._id,
+      name:  u.displayName || u.username,
+      phones: u.phones ?? [],
+      role:  u.role,
+    })));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // GET /api/users  (admin only)
 router.get('/', adminOnly, async (req, res) => {
   try {

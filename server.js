@@ -1,11 +1,32 @@
 require("dotenv").config();
 const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const path = require("path");
 const passport = require("./middleware/passport");
 
+const SECRET = process.env.JWT_SECRET || "vts_secret";
 const app = express();
+const httpServer = http.createServer(app);
+const io = new Server(httpServer, { cors: { origin: "*", methods: ["GET", "POST"] } });
+
+io.on("connection", (socket) => {
+  socket.on("register-admin", async (token) => {
+    try {
+      const payload = jwt.verify(token, SECRET);
+      const User = require("./models/User");
+      const user = await User.findById(payload.id).select("role");
+      if (user && ["admin", "super_admin"].includes(user.role)) {
+        socket.join("admins");
+      }
+    } catch {}
+  });
+});
+
+app.set("io", io);
 
 app.use(cors());
 app.use(express.json());
@@ -46,6 +67,7 @@ app.use("/projects", require("./routes/projects"));
 app.use("/customer-types", require("./routes/customerTypes").router);
 app.use("/settings", require("./routes/settings"));
 app.use("/owners",   require("./routes/owners"));
+app.use("/notifications", require("./routes/notifications"));
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
