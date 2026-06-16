@@ -261,6 +261,11 @@ router.post('/:id/images', upload.array('images', 10), async (req, res) => {
 // DELETE image
 router.delete('/:id/images', async (req, res) => {
   try {
+    const u = req.user;
+    const privileged = ['admin', 'super_admin', 'partner'].includes(u.role);
+    if (!privileged && !u.permissions?.deleteImage) {
+      return res.status(403).json({ message: 'ບໍ່ມີສິດລົບຮູບ' });
+    }
     const { imageUrl } = req.body;
     const customer = await Customer.findById(req.params.id);
     customer.images = customer.images.filter(i => (typeof i === 'string' ? i : i.url) !== imageUrl);
