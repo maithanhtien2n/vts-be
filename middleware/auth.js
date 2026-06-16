@@ -27,4 +27,18 @@ function adminOnly(req, res, next) {
   next();
 }
 
-module.exports = { authenticate, adminOnly };
+function requireEditPerm(req, res, next) {
+  const u = req.user;
+  const privileged = ['admin', 'super_admin', 'partner'].includes(u?.role);
+  if (privileged || u?.permissions?.edit) return next();
+  return res.status(403).json({ message: 'ບໍ່ມີສິດແກ້ໄຂ' });
+}
+
+function requireDeletePerm(req, res, next) {
+  const u = req.user;
+  const privileged = ['admin', 'super_admin', 'partner'].includes(u?.role);
+  if (privileged || u?.permissions?.delete) return next();
+  return res.status(403).json({ message: 'ບໍ່ມີສິດລົບ' });
+}
+
+module.exports = { authenticate, adminOnly, requireEditPerm, requireDeletePerm };

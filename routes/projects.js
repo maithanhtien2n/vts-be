@@ -3,7 +3,7 @@ const router = express.Router();
 const Project = require('../models/Project');
 const Notification = require('../models/Notification');
 const upload  = require('../middleware/upload');
-const { authenticate, adminOnly } = require('../middleware/auth');
+const { authenticate, adminOnly, requireEditPerm, requireDeletePerm } = require('../middleware/auth');
 
 router.use(authenticate);
 
@@ -48,7 +48,7 @@ router.post('/', adminOnly, async (req, res) => {
   }
 });
 
-router.put('/:id', adminOnly, async (req, res) => {
+router.put('/:id', requireEditPerm, async (req, res) => {
   try {
     const project = await Project.findByIdAndUpdate(req.params.id, req.body, { new: true });
     res.json(project);
@@ -58,7 +58,7 @@ router.put('/:id', adminOnly, async (req, res) => {
   }
 });
 
-router.delete('/:id', adminOnly, async (req, res) => {
+router.delete('/:id', requireDeletePerm, async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
     await Project.findByIdAndUpdate(req.params.id, { active: false });
