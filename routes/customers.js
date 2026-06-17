@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 const ExcelJS = require('exceljs');
 const Customer = require('../models/Customer');
@@ -8,13 +8,20 @@ const upload = require('../middleware/upload');
 const { authenticate } = require('../middleware/auth');
 
 const TRACKED_FIELDS = {
-  name:          'ຊື່',
+  name:          'ຊື่ລູກຄ້າ',
   phone:         'ເບີໂທ',
   customerType:  'ປະເພດ',
-  notes:         'ໝາຍເຫດ',
+  notes:         'ລາຍລະອຽດ',
   assignedStaff: 'ພະນັກງານ',
-  ownerName:     'ເຈົ້າຂອງ',
+  ownerName:     'ເຈົ້າຂອງລູກຄ້າ',
+  contactedAt:   'ວັນທີລູກຄ້າທັກມາ',
 };
+
+function toDateStr(val) {
+  if (val == null || val === '') return '';
+  const d = new Date(val);
+  return isNaN(d) ? String(val).trim() : d.toISOString().split('T')[0];
+}
 
 function computeChanges(before, body) {
   const changes = [];
@@ -22,10 +29,15 @@ function computeChanges(before, body) {
     if (!Object.prototype.hasOwnProperty.call(body, key)) continue;
     let from = before ? before[key] : undefined;
     let to   = body[key];
-    if (Array.isArray(from)) from = from.join(', ');
-    if (Array.isArray(to))   to   = to.join(', ');
-    from = from == null ? '' : String(from).trim();
-    to   = to   == null ? '' : String(to).trim();
+    if (key === 'contactedAt') {
+      from = toDateStr(from);
+      to   = toDateStr(to);
+    } else {
+      if (Array.isArray(from)) from = from.join(', ');
+      if (Array.isArray(to))   to   = to.join(', ');
+      from = from == null ? '' : String(from).trim();
+      to   = to   == null ? '' : String(to).trim();
+    }
     if (from !== to) changes.push({ field: label, from, to });
   }
   return changes;
@@ -71,7 +83,7 @@ async function upsertCustomer(data) {
   if (data.updatedBy)               updateFields.updatedBy     = data.updatedBy;
 
   const phone = String(data.phone || '').trim();
-  const existing = await Customer.findOne({ phone });
+  const existing = await Customer.findOne({ phone }).lean();
 
   if (existing) {
     const updated = await Customer.findByIdAndUpdate(
@@ -79,12 +91,12 @@ async function upsertCustomer(data) {
       { $set: updateFields },
       { new: true, runValidators: true }
     ).populate('projects', 'name');
-    return { customer: updated, created: false };
+    return { customer: updated, created: false, before: existing };
   } else {
     const customer = new Customer(data);
     await customer.save();
     await customer.populate('projects', 'name');
-    return { customer, created: true };
+    return { customer, created: true, before: null };
   }
 }
 
@@ -178,7 +190,7 @@ router.get('/', async (req, res) => {
     const [customers, total] = await Promise.all([
       Customer.find(query)
         .populate('projects', 'name')
-        .sort({ no: 1 })
+        .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit)),
       Customer.countDocuments(query)
@@ -204,9 +216,10 @@ router.get('/:id', async (req, res) => {
 // POST create customer (phone-based upsert — preserves images, contactLog, no)
 router.post('/', async (req, res) => {
   try {
-    const { customer, created } = await upsertCustomer(req.body);
+    const { customer, created, before } = await upsertCustomer(req.body);
     res.status(created ? 201 : 200).json(customer);
-    emitCustomerNotif(req, customer, created ? 'create' : 'update');
+    const changes = computeChanges(created ? null : before, req.body);
+    emitCustomerNotif(req, customer, created ? 'create' : 'update', changes);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -281,7 +294,8 @@ router.post('/:id/images', upload.array('images', 10), async (req, res) => {
     let cust = await Customer.findById(req.params.id);
     cust.images = (cust.images || []).map(i => typeof i === 'string' ? { url: i } : i);
     res.json({ images: cust.images });
-    emitCustomerNotif(req, cust, 'upload_image');
+    const imageChanges = objs.map(o => ({ field: 'image', from: '', to: o.url }));
+    emitCustomerNotif(req, cust, 'upload_image', imageChanges);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -297,10 +311,13 @@ router.delete('/:id/images', async (req, res) => {
     }
     const { imageUrl } = req.body;
     const customer = await Customer.findById(req.params.id);
+    const imageObj = customer.images.find(i => (typeof i === 'string' ? i : i.url) === imageUrl);
+    const uploadedBy = imageObj?.uploadedBy || '—';
+    const uploadedAt = imageObj?.createdAt ? new Date(imageObj.createdAt).toISOString() : '';
     customer.images = customer.images.filter(i => (typeof i === 'string' ? i : i.url) !== imageUrl);
     await customer.save();
     res.json({ images: customer.images });
-    emitCustomerNotif(req, customer, 'delete_image');
+    emitCustomerNotif(req, customer, 'delete_image', [{ field: 'ລົບຮູບ', from: uploadedBy, to: uploadedAt }]);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -322,11 +339,11 @@ router.get('/export/excel', async (req, res) => {
     sheet.columns = [
       { header: 'No.', key: 'no', width: 8 },
       { header: 'ເບີໂທ', key: 'phone', width: 16 },
-      { header: 'ຊື່ ແລະ ນາມສະກຸນ', key: 'name', width: 24 },
+      { header: 'ຊື່ລູກຄ້າ', key: 'name', width: 24 },
       { header: 'ປະເພດ', key: 'customerType', width: 20 },
       { header: 'ໂຄງການ', key: 'projects', width: 24 },
       { header: 'ພະນັກງານ', key: 'assignedStaff', width: 16 },
-      { header: 'ໝາຍເຫດ', key: 'notes', width: 30 },
+      { header: 'ລາຍລະອຽດ', key: 'notes', width: 30 },
       { header: 'ວັນທີທັກ', key: 'contactedAt', width: 20 }
     ];
 
