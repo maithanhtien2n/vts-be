@@ -57,6 +57,37 @@ async function emitCustomerNotif(req, customer, action, changes = []) {
 
 router.use(authenticate);
 
+// Upsert by phone: update safe fields only, preserve images/contactLog/no
+async function upsertCustomer(data) {
+  const updateFields = {};
+  if (data.name)                    updateFields.name          = data.name;
+  if (data.customerType?.length)    updateFields.customerType  = data.customerType;
+  if (data.projects?.length)        updateFields.projects      = data.projects;
+  if (data.contactedAt)             updateFields.contactedAt   = data.contactedAt;
+  if (data.notes)                   updateFields.notes         = data.notes;
+  if (data.ownerName     != null)   updateFields.ownerName     = data.ownerName;
+  if (data.ownerLink     != null)   updateFields.ownerLink     = data.ownerLink;
+  if (data.ownerPhoto    != null)   updateFields.ownerPhoto    = data.ownerPhoto;
+  if (data.updatedBy)               updateFields.updatedBy     = data.updatedBy;
+
+  const phone = String(data.phone || '').trim();
+  const existing = await Customer.findOne({ phone });
+
+  if (existing) {
+    const updated = await Customer.findByIdAndUpdate(
+      existing._id,
+      { $set: updateFields },
+      { new: true, runValidators: true }
+    ).populate('projects', 'name');
+    return { customer: updated, created: false };
+  } else {
+    const customer = new Customer(data);
+    await customer.save();
+    await customer.populate('projects', 'name');
+    return { customer, created: true };
+  }
+}
+
 const TYPE_LABELS = {
   new: 'ลูกค้าใหม่',
   interested_land: 'สนใจที่ดิน',
@@ -170,14 +201,12 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST create customer
+// POST create customer (phone-based upsert — preserves images, contactLog, no)
 router.post('/', async (req, res) => {
   try {
-    const customer = new Customer(req.body);
-    await customer.save();
-    await customer.populate('projects', 'name');
-    res.status(201).json(customer);
-    emitCustomerNotif(req, customer, 'create');
+    const { customer, created } = await upsertCustomer(req.body);
+    res.status(created ? 201 : 200).json(customer);
+    emitCustomerNotif(req, customer, created ? 'create' : 'update');
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -301,6 +330,8 @@ router.get('/export/excel', async (req, res) => {
       { header: 'ວັນທີທັກ', key: 'contactedAt', width: 20 }
     ];
 
+    sheet.getColumn('phone').numFmt = '@';
+
     const headerRow = sheet.getRow(1);
     headerRow.eachCell(cell => {
       cell.fill = { type: 'pattern', pattern: 'none' };
@@ -421,10 +452,10 @@ router.post('/import/excel', (req, res, next) => {
       });
     });
 
-    const ops = rows.map(r =>
-      Customer.findOneAndUpdate({ phone: r.phone }, r, { upsert: true, new: true, runValidators: true })
-    );
-    await Promise.all(ops);
+    // Sequential to avoid race condition on auto-increment `no` field
+    for (const r of rows) {
+      await upsertCustomer(r);
+    }
 
     res.json({ message: `Imported ${rows.length} customers`, count: rows.length });
   } catch (err) {
