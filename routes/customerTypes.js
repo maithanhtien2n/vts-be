@@ -6,16 +6,16 @@ const { authenticate } = require('../middleware/auth');
 
 router.use(authenticate);
 
-async function emitTypeNotif(req, name, action) {
+async function emitTypeNotif(req, name, action, changes = []) {
   if (!req.user) return;
   try {
     const notif = await Notification.create({
       targetType: 'customer_type', customerName: name,
-      updatedBy: req.user.displayName || req.user.username, action,
+      updatedBy: req.user.displayName || req.user.username, action, changes,
     });
     req.app.get('io')?.to('admins').emit('customer-notification', {
       _id: notif._id, targetType: 'customer_type', customerName: name,
-      updatedBy: req.user.displayName || req.user.username, action, createdAt: notif.createdAt,
+      updatedBy: req.user.displayName || req.user.username, action, changes, createdAt: notif.createdAt,
     });
   } catch {}
 }
@@ -65,9 +65,13 @@ router.post('/', async (req, res) => {
       const exists = await CustomerType.findOne({ value: base });
       body.value = exists ? `${base}_${Date.now()}` : base;
     }
+    if (!Object.prototype.hasOwnProperty.call(body, 'order')) {
+      const first = await CustomerType.findOne().sort({ order: 1 }).select('order').lean();
+      body.order = (first?.order ?? 0) - 1;
+    }
     const type = await CustomerType.create(body);
     res.status(201).json(type);
-    emitTypeNotif(req, type.label, 'create');
+    emitTypeNotif(req, type.label, 'create', [{ field: 'ຊື່', from: '', to: type.label }]);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -76,12 +80,34 @@ router.post('/', async (req, res) => {
 // PUT /:id — update
 router.put('/:id', async (req, res) => {
   try {
+    const before = await CustomerType.findById(req.params.id).lean();
     const type = await CustomerType.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
     if (!type) return res.status(404).json({ message: 'Not found' });
     res.json(type);
-    emitTypeNotif(req, type.label, 'update');
+    const FIELDS = { label: 'ຊື່', color: 'ສີ', order: 'ລຳດັບ' };
+    const changes = Object.entries(FIELDS)
+      .filter(([k]) => Object.prototype.hasOwnProperty.call(req.body, k))
+      .map(([k, label]) => {
+        const from = String(before?.[k] ?? '').trim();
+        const to   = String(req.body[k]  ?? '').trim();
+        return from !== to ? { field: label, from, to } : null;
+      }).filter(Boolean);
+    emitTypeNotif(req, type.label, 'update', changes);
   } catch (err) {
     res.status(400).json({ message: err.message });
+  }
+});
+
+// POST /normalize-order — reset all orders to sequential 1..N
+router.post('/normalize-order', async (req, res) => {
+  try {
+    const types = await CustomerType.find().sort({ order: 1, createdAt: 1 });
+    await Promise.all(
+      types.map((t, i) => CustomerType.findByIdAndUpdate(t._id, { order: i + 1 }))
+    );
+    res.json({ message: 'Normalized', count: types.length });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 

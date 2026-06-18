@@ -7,7 +7,7 @@ const { authenticate } = require('../middleware/auth');
 
 router.use(authenticate);
 
-async function emitOwnerNotif(req, owner, action) {
+async function emitOwnerNotif(req, owner, action, changes = []) {
   if (!req.user) return;
   try {
     const notif = await Notification.create({
@@ -15,6 +15,7 @@ async function emitOwnerNotif(req, owner, action) {
       customerName: owner.name,
       updatedBy:    req.user.displayName || req.user.username,
       action,
+      changes,
     });
     req.app.get('io')?.to('admins').emit('customer-notification', {
       _id:          notif._id,
@@ -22,6 +23,7 @@ async function emitOwnerNotif(req, owner, action) {
       customerName: owner.name,
       updatedBy:    req.user.displayName || req.user.username,
       action,
+      changes,
       createdAt:    notif.createdAt,
     });
   } catch {}
@@ -88,6 +90,19 @@ router.post('/:id/photo', upload.single('photo'), async (req, res) => {
     if (!owner) return res.status(404).json({ message: 'Not found' });
     res.json({ photo });
     emitOwnerNotif(req, owner, 'upload_image');
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// DELETE photo
+router.delete('/:id/photo', async (req, res) => {
+  try {
+    const owner = await Owner.findById(req.params.id);
+    if (!owner) return res.status(404).json({ message: 'Not found' });
+    await Owner.findByIdAndUpdate(req.params.id, { photo: '' });
+    res.json({ photo: '' });
+    emitOwnerNotif(req, owner, 'delete_image', [{ field: 'ລົບຮູບ', from: owner.name, to: new Date().toISOString() }]);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
