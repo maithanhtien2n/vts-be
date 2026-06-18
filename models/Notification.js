@@ -8,7 +8,7 @@ const schema = new mongoose.Schema({
   updatedBy:    { type: String },
   action: {
     type: String,
-    enum: ['create', 'update', 'delete', 'contact', 'upload_image', 'delete_image'],
+    enum: ['create', 'update', 'delete', 'contact', 'upload_image', 'delete_image', 'approve', 'reject'],
     default: 'update',
   },
   changes: [{

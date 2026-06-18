@@ -1,20 +1,21 @@
 const router = require('express').Router();
 const User = require('../models/User');
 const Notification = require('../models/Notification');
+const Project = require('../models/Project');
 const { authenticate, adminOnly } = require('../middleware/auth');
 
 router.use(authenticate);
 
-async function emitStaffNotif(req, name, action) {
+async function emitStaffNotif(req, name, action, changes = []) {
   if (!req.user) return;
   try {
     const notif = await Notification.create({
       targetType: 'staff', customerName: name,
-      updatedBy: req.user.displayName || req.user.username, action,
+      updatedBy: req.user.displayName || req.user.username, action, changes,
     });
     req.app.get('io')?.to('admins').emit('customer-notification', {
       _id: notif._id, targetType: 'staff', customerName: name,
-      updatedBy: req.user.displayName || req.user.username, action, createdAt: notif.createdAt,
+      updatedBy: req.user.displayName || req.user.username, action, changes, createdAt: notif.createdAt,
     });
   } catch {}
 }
@@ -162,6 +163,29 @@ router.put('/:id/approve', adminOnly, async (req, res) => {
     ).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(user);
+    const ROLE_LABELS = { staff: 'ພະນັກງານ', partner: 'ຮຸ້ນສ່ວນ', admin: 'ແອັດມິນ' };
+    const PERM_MAP    = { view: 'ເບິ່ງ', insert: 'ເພີ່ມ', edit: 'ແກ້ໄຂ', update: 'ອັບໂຫຼດ', delete: 'ລົບ' };
+    const roleLabel = ROLE_LABELS[update.role] || update.role || '';
+    const permStr = update.permissions
+      ? Object.entries(PERM_MAP).filter(([k]) => update.permissions[k]).map(([, v]) => v).join(' / ')
+      : '';
+    const notifChanges = [
+      ...(roleLabel ? [{ field: 'ພາລະບົດບາດ', from: '', to: roleLabel }] : []),
+      ...(permStr   ? [{ field: 'ສິດ', from: '', to: permStr }] : []),
+    ];
+    if (req.body.parentPartnerName) {
+      notifChanges.push({ field: 'ພາຍໃຕ້ຮຸ້ນສ່ວນ', from: '', to: req.body.parentPartnerName });
+    }
+    if (update.assignedProjects?.length) {
+      Project.find({ _id: { $in: update.assignedProjects } }).select('name').lean()
+        .then(projs => {
+          if (projs.length) notifChanges.push({ field: 'ໂຄງການ', from: '', to: projs.map(p => p.name).join(', ') });
+          emitStaffNotif(req, user.displayName || user.username, 'approve', notifChanges);
+        })
+        .catch(() => emitStaffNotif(req, user.displayName || user.username, 'approve', notifChanges));
+    } else {
+      emitStaffNotif(req, user.displayName || user.username, 'approve', notifChanges);
+    }
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -176,7 +200,13 @@ router.delete('/:id', adminOnly, async (req, res) => {
     const user = await User.findByIdAndDelete(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json({ message: 'Deleted' });
-    emitStaffNotif(req, user.displayName || user.username, 'delete');
+    if (user.status === 'pending') {
+      emitStaffNotif(req, user.displayName || user.username, 'reject', [
+        { field: 'ອີເມວ', from: '', to: user.email || '' },
+      ]);
+    } else {
+      emitStaffNotif(req, user.displayName || user.username, 'delete');
+    }
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
