@@ -45,7 +45,11 @@ router.post('/', async (req, res) => {
     const { name, link, photo } = req.body;
     const owner = await Owner.create({ name, link, photo });
     res.status(201).json(owner);
-    emitOwnerNotif(req, owner, 'create');
+    const createChanges = [
+      { field: 'ຊື່', from: '', to: owner.name || '' },
+      ...(owner.link ? [{ field: 'ລິ້ງ', from: '', to: owner.link }] : []),
+    ];
+    emitOwnerNotif(req, owner, 'create', createChanges);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -55,6 +59,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { name, link, photo } = req.body;
+    const before = await Owner.findById(req.params.id).lean();
     const owner = await Owner.findByIdAndUpdate(
       req.params.id,
       { name, link, photo },
@@ -62,7 +67,15 @@ router.put('/:id', async (req, res) => {
     );
     if (!owner) return res.status(404).json({ message: 'Not found' });
     res.json(owner);
-    emitOwnerNotif(req, owner, 'update');
+    const FIELDS = { name: 'ຊື່', link: 'ລິ້ງ' };
+    const changes = Object.entries(FIELDS)
+      .filter(([k]) => Object.prototype.hasOwnProperty.call(req.body, k))
+      .map(([k, label]) => {
+        const from = String(before?.[k] ?? '').trim();
+        const to   = String(req.body[k]  ?? '').trim();
+        return from !== to ? { field: label, from, to } : null;
+      }).filter(Boolean);
+    emitOwnerNotif(req, owner, 'update', changes);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
