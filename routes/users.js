@@ -122,6 +122,7 @@ router.post('/', adminOnly, async (req, res) => {
 router.put('/:id', adminOnly, async (req, res) => {
   try {
     const { username, displayName, role, permissions, assignedProjects, assignedStaff, phones } = req.body;
+    const before = await User.findById(req.params.id).select('-password').lean();
     const updateData = { username, displayName, role };
     if (permissions !== undefined) updateData.permissions = permissions;
     if (assignedProjects !== undefined) updateData.assignedProjects = assignedProjects;
@@ -134,7 +135,65 @@ router.put('/:id', adminOnly, async (req, res) => {
     ).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(user);
-    emitStaffNotif(req, user.displayName || user.username, 'update');
+    // Compute changes
+    const USER_FIELDS = {
+      username: 'Username', displayName: 'ຊື່ສະແດງ', role: 'ບົດບາດ', phones: 'ເບີໂທ'
+    };
+    const ROLE_LABELS = { staff: 'ພະນັກງານ', partner: 'ຮຸ້ນສ່ວນ', admin: 'ແອັດມິນ', super_admin: 'ເຈົ້າຂອງ' };
+    const changes = [];
+    for (const [key, label] of Object.entries(USER_FIELDS)) {
+      if (!Object.prototype.hasOwnProperty.call(req.body, key)) continue;
+      let from = before?.[key];
+      let to = req.body[key];
+      if (key === 'role') {
+        from = ROLE_LABELS[from] || from || '';
+        to = ROLE_LABELS[to] || to || '';
+      }
+      if (Array.isArray(from)) from = from.join(', ');
+      if (Array.isArray(to)) to = to.join(', ');
+      from = from == null ? '' : String(from).trim();
+      to = to == null ? '' : String(to).trim();
+      if (from !== to) changes.push({ field: label, from, to });
+    }
+    // Check permission changes
+    const permMap = { view: 'ເບິ່ງ', edit: 'ແກ້ໄຂ', insert: 'ເພີ່ມ', update: 'ອັບໂຫລດ', delete: 'ລົບ', deleteImage: 'ລົບຮູບ' };
+    if (permissions !== undefined) {
+      const fromPerms = Object.entries(permMap).filter(([k]) => before?.permissions?.[k]).map(([, v]) => v).join(', ');
+      const toPerms = Object.entries(permMap).filter(([k]) => permissions[k]).map(([, v]) => v).join(', ');
+      if (fromPerms !== toPerms) changes.push({ field: 'ສິດ', from: fromPerms, to: toPerms });
+    }
+    // Check project changes
+    if (assignedProjects !== undefined) {
+      const Project = require('../models/Project');
+      const fromIds = (before?.assignedProjects || []).map(i => i.toString());
+      const toIds = (assignedProjects || []).map(i => i.toString());
+      if (fromIds.length > 0 || toIds.length > 0) {
+        const projs = await Project.find({ _id: { $in: [...fromIds, ...toIds] } }).select('name').lean();
+        const nameMap = {};
+        projs.forEach(p => nameMap[p._id.toString()] = p.name);
+        const fromNames = fromIds.map(id => nameMap[id] || id).filter(Boolean);
+        const toNames = toIds.map(id => nameMap[id] || id).filter(Boolean);
+        const fromStr = fromNames.join(', ');
+        const toStr = toNames.join(', ');
+        if (fromStr !== toStr) changes.push({ field: 'ໂຄງການ', from: fromStr, to: toStr });
+      }
+    }
+    // Check staff changes
+    if (assignedStaff !== undefined) {
+      const fromIds = (before?.assignedStaff || []).map(i => i.toString());
+      const toIds = (assignedStaff || []).map(i => i.toString());
+      if (fromIds.length > 0 || toIds.length > 0) {
+        const staffUsers = await User.find({ _id: { $in: [...fromIds, ...toIds] } }).select('displayName username').lean();
+        const nameMap = {};
+        staffUsers.forEach(u => nameMap[u._id.toString()] = u.displayName || u.username);
+        const fromNames = fromIds.map(id => nameMap[id] || id).filter(Boolean);
+        const toNames = toIds.map(id => nameMap[id] || id).filter(Boolean);
+        const fromStr = fromNames.join(', ');
+        const toStr = toNames.join(', ');
+        if (fromStr !== toStr) changes.push({ field: 'ພະນັກງານ', from: fromStr, to: toStr });
+      }
+    }
+    emitStaffNotif(req, user.displayName || user.username, 'update', changes);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }

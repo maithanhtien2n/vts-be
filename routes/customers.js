@@ -8,9 +8,10 @@ const upload = require('../middleware/upload');
 const { authenticate } = require('../middleware/auth');
 
 const TRACKED_FIELDS = {
-  name:          'ຊື่ລູກຄ້າ',
+  name:          'ຊື່ລູກຄ້າ',
   phone:         'ເບີໂທ',
   customerType:  'ປະເພດ',
+  projects:      'ໂຄງການ',
   notes:         'ລາຍລະອຽດ',
   assignedStaff: 'ພະນັກງານ',
   ownerName:     'ເຈົ້າຂອງລູກຄ້າ',
