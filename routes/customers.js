@@ -147,23 +147,30 @@ router.get('/', async (req, res) => {
       ? (req.user.assignedProjects?.map(p => p.toString()) ?? [])
       : null;
 
+    // Helpers to match customers with no projects
+    const noProjectCluses = [
+      { projects: { $size: 0 } },
+      { projects: { $exists: false } },
+    ];
+
     if (isPartner) {
-      // Partner sees: customers in their assignedProjects OR assigned to them by name
+      // Partner sees: customers in their assignedProjects OR assigned by name + no-project customers
       const partnerProjects = (req.user.assignedProjects ?? []).map(p => p.toString());
       const partnerName     = req.user.displayName || req.user.username || '';
 
-      // If a project filter was requested, clamp to partner's allowed projects
       if (project) {
         let requested = Array.isArray(project) ? project : project.split(',').map(p => p.trim()).filter(Boolean);
         requested = requested.filter(p => partnerProjects.includes(p));
         const orClauses = [];
         if (requested.length)  orClauses.push({ projects: { $in: requested } });
         if (partnerName)       orClauses.push({ assignedStaff: partnerName });
+        orClauses.push(...noProjectCluses);
         query.$or = orClauses.length ? orClauses : [{ _id: null }];
       } else {
         const orClauses = [];
         if (partnerProjects.length) orClauses.push({ projects: { $in: partnerProjects } });
         if (partnerName)            orClauses.push({ assignedStaff: partnerName });
+        orClauses.push(...noProjectCluses);
         if (orClauses.length) query.$or = orClauses;
       }
     } else if (project) {
@@ -171,8 +178,15 @@ router.get('/', async (req, res) => {
       if (staffProjects) requested = requested.filter(p => staffProjects.includes(p));
       if (requested.length) query.projects = requested.length === 1 ? requested[0] : { $in: requested };
       else if (staffProjects) query.projects = { $in: [] };
-    } else if (staffProjects) {
-      query.projects = { $in: staffProjects };
+    } else if (staffProjects && staffProjects.length > 0) {
+      // Staff has projects → their projects + no-project customers
+      query.$or = [
+        { projects: { $in: staffProjects } },
+        ...noProjectCluses,
+      ];
+    } else if (staffProjects && staffProjects.length === 0) {
+      // Staff has NO projects → only no-project customers
+      query.$or = [...noProjectCluses];
     }
     if (staff) {
       const staffList = Array.isArray(staff) ? staff : staff.split(',').map(s => s.trim()).filter(Boolean);
