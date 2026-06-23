@@ -75,6 +75,18 @@ router.put('/:id', async (req, res) => {
         const to   = String(req.body[k]  ?? '').trim();
         return from !== to ? { field: label, from, to } : null;
       }).filter(Boolean);
+    // Detect photo change
+    if (photo !== undefined) {
+      const beforePhoto = String(before?.photo ?? '').trim();
+      const toPhoto = String(photo ?? '').trim();
+      if (beforePhoto !== toPhoto) {
+        if (toPhoto && !beforePhoto) {
+          changes.push({ field: 'ຮູບພາບ', from: '', to: 'ເພີ່ມຮູບ' });
+        } else if (!toPhoto && beforePhoto) {
+          changes.push({ field: 'ຮູບພາບ', from: '', to: 'ລົບຮູບ' });
+        }
+      }
+    }
     emitOwnerNotif(req, owner, 'update', changes);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -102,7 +114,7 @@ router.post('/:id/photo', upload.single('photo'), async (req, res) => {
     const owner = await Owner.findByIdAndUpdate(req.params.id, { photo }, { new: true });
     if (!owner) return res.status(404).json({ message: 'Not found' });
     res.json({ photo });
-    emitOwnerNotif(req, owner, 'upload_image');
+    emitOwnerNotif(req, owner, 'upload_image', [{ field: 'ຮູບພາບ', from: '', to: photo }]);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
