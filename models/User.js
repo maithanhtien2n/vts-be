@@ -20,6 +20,7 @@ const userSchema = new mongoose.Schema({
     deleteImage: { type: Boolean, default: false },
   },
   assignedProjects: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Project' }],
+  assignedStaff: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   phones: [{ type: String, trim: true }],
 }, { timestamps: true });
 

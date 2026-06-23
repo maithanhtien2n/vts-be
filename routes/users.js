@@ -121,10 +121,11 @@ router.post('/', adminOnly, async (req, res) => {
 // PUT /api/users/:id  (admin only)
 router.put('/:id', adminOnly, async (req, res) => {
   try {
-    const { username, displayName, role, permissions, assignedProjects, phones } = req.body;
+    const { username, displayName, role, permissions, assignedProjects, assignedStaff, phones } = req.body;
     const updateData = { username, displayName, role };
     if (permissions !== undefined) updateData.permissions = permissions;
     if (assignedProjects !== undefined) updateData.assignedProjects = assignedProjects;
+    if (assignedStaff !== undefined) updateData.assignedStaff = assignedStaff;
     if (phones !== undefined) updateData.phones = phones;
     const user = await User.findByIdAndUpdate(
       req.params.id,

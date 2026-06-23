@@ -8,8 +8,8 @@ const sign = (id) => jwt.sign({ id }, SECRET, { expiresIn: '7d' });
 
 // GET /api/auth/me
 router.get('/me', authenticate, (req, res) => {
-  const { _id, username, displayName, email, role, avatar, permissions, assignedProjects, phones } = req.user;
-  res.json({ _id, username, displayName, email, role, avatar, permissions, assignedProjects, phones });
+  const { _id, username, displayName, email, role, avatar, permissions, assignedProjects, assignedStaff, phones } = req.user;
+  res.json({ _id, username, displayName, email, role, avatar, permissions, assignedProjects, assignedStaff, phones });
 });
 
 // GET /api/auth/google — initiate Google OAuth
