@@ -42,14 +42,16 @@ router.get('/', async (req, res) => {
 // POST create
 router.post('/', async (req, res) => {
   try {
-    const { name, link, photo } = req.body;
+    const { name, link, photo, _suppressNotif } = req.body;
     const owner = await Owner.create({ name, link, photo });
     res.status(201).json(owner);
-    const createChanges = [
-      { field: 'ຊື່', from: '', to: owner.name || '' },
-      ...(owner.link ? [{ field: 'ລິ້ງ', from: '', to: owner.link }] : []),
-    ];
-    emitOwnerNotif(req, owner, 'create', createChanges);
+    if (!_suppressNotif) {
+      const createChanges = [
+        { field: 'ຊື່', from: '', to: owner.name || '' },
+        ...(owner.link ? [{ field: 'ລິ້ງ', from: '', to: owner.link }] : []),
+      ];
+      emitOwnerNotif(req, owner, 'create', createChanges);
+    }
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -58,7 +60,7 @@ router.post('/', async (req, res) => {
 // PUT update
 router.put('/:id', async (req, res) => {
   try {
-    const { name, link, photo } = req.body;
+    const { name, link, photo, originalPhoto, _asCreate } = req.body;
     const before = await Owner.findById(req.params.id).lean();
     const owner = await Owner.findByIdAndUpdate(
       req.params.id,
@@ -71,23 +73,22 @@ router.put('/:id', async (req, res) => {
     const changes = Object.entries(FIELDS)
       .filter(([k]) => Object.prototype.hasOwnProperty.call(req.body, k))
       .map(([k, label]) => {
-        const from = String(before?.[k] ?? '').trim();
+        const from = _asCreate ? '' : String(before?.[k] ?? '').trim();
         const to   = String(req.body[k]  ?? '').trim();
-        return from !== to ? { field: label, from, to } : null;
+        return to ? { field: label, from, to } : null;
       }).filter(Boolean);
-    // Detect photo change
-    if (photo !== undefined) {
-      const beforePhoto = String(before?.photo ?? '').trim();
-      const toPhoto = String(photo ?? '').trim();
-      if (beforePhoto !== toPhoto) {
-        if (toPhoto && !beforePhoto) {
-          changes.push({ field: 'ຮູບພາບ', from: '', to: 'ເພີ່ມຮູບ' });
-        } else if (!toPhoto && beforePhoto) {
-          changes.push({ field: 'ຮູບພາບ', from: '', to: 'ລົບຮູບ' });
+    if (photo !== undefined && originalPhoto !== undefined) {
+      const origPhoto = String(originalPhoto).trim();
+      const toPhoto = String(photo).trim();
+      if (origPhoto !== toPhoto) {
+        if (toPhoto && !origPhoto) {
+          changes.push({ field: 'ເພີ່ມຮູບ', from: '', to: toPhoto });
+        } else if (!toPhoto && origPhoto) {
+          changes.push({ field: 'ລົບຮູບ', from: '', to: origPhoto });
         }
       }
     }
-    emitOwnerNotif(req, owner, 'update', changes);
+    if (changes.length) emitOwnerNotif(req, owner, _asCreate ? 'create' : 'update', changes);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -114,7 +115,6 @@ router.post('/:id/photo', upload.single('photo'), async (req, res) => {
     const owner = await Owner.findByIdAndUpdate(req.params.id, { photo }, { new: true });
     if (!owner) return res.status(404).json({ message: 'Not found' });
     res.json({ photo });
-    emitOwnerNotif(req, owner, 'upload_image', [{ field: 'ຮູບພາບ', from: '', to: photo }]);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -127,7 +127,6 @@ router.delete('/:id/photo', async (req, res) => {
     if (!owner) return res.status(404).json({ message: 'Not found' });
     await Owner.findByIdAndUpdate(req.params.id, { photo: '' });
     res.json({ photo: '' });
-    emitOwnerNotif(req, owner, 'delete_image', [{ field: 'ລົບຮູບ', from: owner.name, to: new Date().toISOString() }]);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
