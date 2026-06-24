@@ -39,13 +39,14 @@ router.post('/', adminOnly, async (req, res) => {
   try {
     const project = await Project.create(req.body);
     res.status(201).json(project);
-    const changes = [
-      { field: 'ຊື່ໂຄງການ', from: '', to: project.name || '' },
-      project.description ? { field: 'ລາຍລະອຽດ',  from: '', to: project.description } : null,
-      project.location    ? { field: 'ໂລເຄຊັ້ນ',   from: '', to: project.location    } : null,
-      ...((project.images || []).map(img => ({ field: 'image', from: '', to: typeof img === 'string' ? img : img.url }))),
-    ].filter(Boolean);
-    emitProjectNotif(req, project.name, 'create', changes);
+    if (!req.body._suppressNotif) {
+      const changes = [
+        { field: 'ຊື່ໂຄງການ', from: '', to: project.name || '' },
+        project.description ? { field: 'ລາຍລະອຽດ',  from: '', to: project.description } : null,
+        project.location    ? { field: 'ໂລເຄຊັ້ນ',   from: '', to: project.location    } : null,
+      ].filter(Boolean);
+      emitProjectNotif(req, project.name, 'create', changes);
+    }
   } catch (err) {
     const msg = err.code === 11000
       ? 'ຊື່ໂຄງການນີ້ມີຢູ່ແລ້ວ / Project name already exists'
@@ -67,7 +68,9 @@ router.put('/:id', requireEditPerm, async (req, res) => {
         const to   = String(req.body[k] ?? '').trim();
         return from !== to ? { field: label, from, to } : null;
       }).filter(Boolean);
-    emitProjectNotif(req, project.name, 'update', changes);
+    if (changes.length && !req.body._suppressNotif) {
+      emitProjectNotif(req, project.name, 'update', changes);
+    }
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -95,8 +98,40 @@ router.post('/:id/images', upload.array('images', 10), async (req, res) => {
     project.images.push(...newImgs);
     await project.save();
     res.json(project);
-    const imageChanges = newImgs.map(img => ({ field: 'image', from: '', to: img.url }));
-    emitProjectNotif(req, project.name, 'upload_image', imageChanges);
+
+    if (req.body._asCreate === 'true') {
+      // Combined create + images notification
+      const changes = [
+        { field: 'ຊື່ໂຄງການ', from: '', to: req.body.createName || '' },
+        req.body.createDesc ? { field: 'ລາຍລະອຽດ', from: '', to: req.body.createDesc } : null,
+        req.body.createLocation ? { field: 'ໂລເຄຊັ້ນ', from: '', to: req.body.createLocation } : null,
+      ].filter(Boolean);
+      const imageChanges = newImgs.map(img => ({ field: 'image', from: '', to: img.url }));
+      imageChanges.push({ field: 'ຖ້ອຍຕົວ', from: '', to: `ເພີ່ມ ${newImgs.length} ຮູບ` });
+      emitProjectNotif(req, project.name, 'create', [...changes, ...imageChanges]);
+    } else if (req.body._combined === 'true') {
+      // Combined edit notification
+      const changes = [];
+      if (req.body.editName) changes.push({ field: 'ຊື່ໂຄງການ', from: '', to: req.body.editName });
+      if (req.body.editDesc) changes.push({ field: 'ລາຍລະອຽດ', from: '', to: req.body.editDesc });
+      if (req.body.editLoc) changes.push({ field: 'ໂລເຄຊັ້ນ', from: '', to: req.body.editLoc });
+
+      if (newImgs.length) {
+        changes.push(...newImgs.map(img => ({ field: 'image', from: '', to: img.url })));
+        changes.push({ field: 'ຖ້ອຍຕົວ', from: '', to: `ເພີ່ມ ${newImgs.length} ຮູບ` });
+      }
+      const delCount = parseInt(req.body.deletedCount) || 0;
+      if (delCount) {
+        changes.push({ field: 'image_deleted', from: '', to: '' });
+        changes.push({ field: 'ຖ້ອຍຕົວ', from: '', to: `ລົບ ${delCount} ຮູບ` });
+      }
+      if (changes.length) emitProjectNotif(req, project.name, 'update', changes);
+    } else {
+      const count = newImgs.length;
+      const imageChanges = newImgs.map(img => ({ field: 'image', from: '', to: img.url }));
+      imageChanges.push({ field: 'ຖ້ອຍຕົວ', from: '', to: `ເພີ່ມ ${count} ຮູບ` });
+      emitProjectNotif(req, project.name, 'update', imageChanges);
+    }
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -107,13 +142,15 @@ router.delete('/:id/images', requireEditPerm, async (req, res) => {
     const project = await Project.findById(req.params.id);
     if (!project) return res.status(404).json({ message: 'Not found' });
     const { imageUrl } = req.body;
-    const imageObj = project.images.find(i => i.url === imageUrl);
-    const uploadedBy = imageObj?.uploadedBy || '—';
-    const uploadedAt = imageObj?.createdAt ? new Date(imageObj.createdAt).toISOString() : '';
     project.images = project.images.filter(i => i.url !== imageUrl);
     await project.save();
     res.json(project);
-    emitProjectNotif(req, project.name, 'delete_image', [{ field: 'ລົບຮູບ', from: uploadedBy, to: uploadedAt }]);
+    if (!req.body._suppressNotif) {
+      emitProjectNotif(req, project.name, 'update', [
+        { field: 'image_deleted', from: '', to: imageUrl },
+        { field: 'ຖ້ອຍຕົວ', from: '', to: 'ລົບ 1 ຮູບ' },
+      ]);
+    }
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
