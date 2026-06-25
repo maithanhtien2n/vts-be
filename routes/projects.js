@@ -110,8 +110,10 @@ router.post('/:id/images', upload.array('images', 10), async (req, res) => {
       imageChanges.push({ field: 'ຖ້ອຍຕົວ', from: '', to: `ເພີ່ມ ${newImgs.length} ຮູບ` });
       emitProjectNotif(req, project.name, 'create', [...changes, ...imageChanges]);
     } else if (req.body._combined === 'true') {
-      // Combined edit notification
+      // Combined edit notification (PUT is suppressed)
       const changes = [];
+
+      // Text field changes
       if (req.body.editName) changes.push({ field: 'ຊື່ໂຄງການ', from: '', to: req.body.editName });
       if (req.body.editDesc) changes.push({ field: 'ລາຍລະອຽດ', from: '', to: req.body.editDesc });
       if (req.body.editLoc) changes.push({ field: 'ໂລເຄຊັ້ນ', from: '', to: req.body.editLoc });
