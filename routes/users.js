@@ -230,7 +230,7 @@ router.put('/:id/approve', adminOnly, async (req, res) => {
       ? Object.entries(PERM_MAP).filter(([k]) => update.permissions[k]).map(([, v]) => v).join(' / ')
       : '';
     const notifChanges = [
-      ...(roleLabel ? [{ field: 'ພາລະບົດບາດ', from: '', to: roleLabel }] : []),
+      ...(roleLabel ? [{ field: 'ບົດບາດ', from: '', to: roleLabel }] : []),
       ...(permStr   ? [{ field: 'ສິດ', from: '', to: permStr }] : []),
     ];
     if (req.body.parentPartnerName) {
