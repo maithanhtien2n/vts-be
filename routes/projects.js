@@ -91,7 +91,7 @@ router.post('/:id/images', upload.array('images', 10), async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
     if (!project) return res.status(404).json({ message: 'Not found' });
-    const newImgs = req.files.map(f => ({
+    const newImgs = (req.files || []).map(f => ({
       url: `/uploads/${f.filename}`,
       uploadedBy: req.body.uploadedBy || '',
     }));
@@ -114,9 +114,9 @@ router.post('/:id/images', upload.array('images', 10), async (req, res) => {
       const changes = [];
 
       // Text field changes
-      if (req.body.editName) changes.push({ field: 'ຊື່ໂຄງການ', from: '', to: req.body.editName });
-      if (req.body.editDesc) changes.push({ field: 'ລາຍລະອຽດ', from: '', to: req.body.editDesc });
-      if (req.body.editLoc) changes.push({ field: 'ໂລເຄຊັ້ນ', from: '', to: req.body.editLoc });
+      if (req.body.editName) changes.push({ field: 'ຊື່ໂຄງການ', from: req.body.oldName || '', to: req.body.editName });
+      if (req.body.editDesc) changes.push({ field: 'ລາຍລະອຽດ', from: req.body.oldDesc || '', to: req.body.editDesc });
+      if (req.body.editLoc) changes.push({ field: 'ໂລເຄຊັ້ນ', from: req.body.oldLoc || '', to: req.body.editLoc });
 
       if (newImgs.length) {
         changes.push(...newImgs.map(img => ({ field: 'image', from: '', to: img.url })));
