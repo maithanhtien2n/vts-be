@@ -128,7 +128,7 @@ const TYPE_LABELS = {
 // GET all customers
 router.get('/', async (req, res) => {
   try {
-    const { search, type, project, staff, owner, dateFrom, dateTo, page = 1, limit = 50 } = req.query;
+    const { search, type, project, staff, owner, dateFrom, dateTo, contactedFrom, contactedTo, page = 1, limit = 50 } = req.query;
     const query = {};
 
     if (search) {
@@ -203,8 +203,13 @@ router.get('/', async (req, res) => {
     }
     if (dateFrom || dateTo) {
       query.createdAt = {};
-      if (dateFrom) query.createdAt.$gte = new Date(dateFrom);
-      if (dateTo)   query.createdAt.$lte = new Date(dateTo + 'T23:59:59.999Z');
+      if (dateFrom) query.createdAt.$gte = new Date(dateFrom + 'T00:00:00+07:00');
+      if (dateTo)   query.createdAt.$lte = new Date(dateTo + 'T23:59:59+07:00');
+    }
+    if (contactedFrom || contactedTo) {
+      query.lastContactedAt = {};
+      if (contactedFrom) query.lastContactedAt.$gte = new Date(contactedFrom + 'T00:00:00+07:00');
+      if (contactedTo)   query.lastContactedAt.$lte = new Date(contactedTo + 'T23:59:59+07:00');
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -311,7 +316,11 @@ router.post('/:id/images', upload.array('images', 10), async (req, res) => {
     const now = new Date();
     const uploadedBy = req.body.uploadedBy || '';
     const objs = req.files.map(f => ({ url: `/uploads/${f.filename}`, createdAt: now, updatedAt: now, uploadedBy }));
-    await Customer.findByIdAndUpdate(req.params.id, { $push: { images: { $each: objs } } });
+    await Customer.findByIdAndUpdate(req.params.id, {
+      $push: { images: { $each: objs } },
+      lastContactedBy: uploadedBy,
+      lastContactedAt: now
+    });
     let cust = await Customer.findById(req.params.id);
     cust.images = (cust.images || []).map(i => typeof i === 'string' ? { url: i } : i);
     res.json({ images: cust.images });
