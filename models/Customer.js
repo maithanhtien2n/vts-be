@@ -14,9 +14,7 @@ const customerSchema = new mongoose.Schema({
   projects: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Project' }],
   notes: { type: String, default: '' },
   assignedStaff: { type: String, default: '' },
-  ownerName:     { type: String, default: '' },
-  ownerPhoto:    { type: String, default: '' },
-  ownerLink:     { type: String, default: '' },
+  owners: [{ name: { type: String }, photo: { type: String }, link: { type: String } }],
   images: { type: [mongoose.Schema.Types.Mixed], default: [] },
   contactedAt: { type: Date },
   lastContactedBy: { type: String, default: '' },
@@ -26,6 +24,7 @@ const customerSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 customerSchema.post('init', function () {
+  const doc = this.toObject();
   if (this.images && this.images.length) {
     this.images = this.images.map(i => typeof i === 'string' ? { url: i } : i);
   }
@@ -34,6 +33,13 @@ customerSchema.post('init', function () {
     this.customerType = this.customerType ? [this.customerType] : ['new'];
   } else if (!Array.isArray(this.customerType) || this.customerType.length === 0) {
     this.customerType = ['new'];
+  }
+  // migrate old single owner fields to new owners array
+  if (doc.ownerName && !this.owners?.length) {
+    this.owners = [{ name: doc.ownerName, photo: doc.ownerPhoto || '', link: doc.ownerLink || '' }];
+  }
+  if (!this.owners) {
+    this.owners = [];
   }
 });
 

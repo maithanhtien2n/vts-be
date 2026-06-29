@@ -15,6 +15,7 @@ const TRACKED_FIELDS = {
   notes:         'ລາຍລະອຽດ',
   assignedStaff: 'ພະນັກງານ',
   ownerName:     'ເຈົ້າຂອງລູກຄ້າ',
+  owners:        'ເຈົ້າຂອງລູກຄ້າ',
   contactedAt:   'ວັນທີລູກຄ້າທັກມາ',
 };
 
@@ -78,6 +79,7 @@ async function upsertCustomer(data) {
   if (data.projects?.length)        updateFields.projects      = data.projects;
   if (data.contactedAt)             updateFields.contactedAt   = data.contactedAt;
   if (data.notes)                   updateFields.notes         = data.notes;
+  if (data.owners       != null)   updateFields.owners        = data.owners;
   if (data.ownerName     != null)   updateFields.ownerName     = data.ownerName;
   if (data.ownerLink     != null)   updateFields.ownerLink     = data.ownerLink;
   if (data.ownerPhoto    != null)   updateFields.ownerPhoto    = data.ownerPhoto;
