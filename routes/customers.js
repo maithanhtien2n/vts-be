@@ -128,7 +128,7 @@ const TYPE_LABELS = {
 // GET all customers
 router.get('/', async (req, res) => {
   try {
-    const { search, type, project, staff, dateFrom, dateTo, page = 1, limit = 50 } = req.query;
+    const { search, type, project, staff, owner, dateFrom, dateTo, page = 1, limit = 50 } = req.query;
     const query = {};
 
     if (search) {
@@ -196,6 +196,10 @@ router.get('/', async (req, res) => {
       query.assignedStaff = staffList.length === 1
         ? { $regex: staffList[0], $options: 'i' }
         : { $in: staffList };
+    }
+    if (owner) {
+      const ownerList = Array.isArray(owner) ? owner : owner.split(',').map(o => o.trim()).filter(Boolean);
+      query['$or'] = (query['$or'] || []).concat(ownerList.map(n => ({ 'owners.name': n })));
     }
     if (dateFrom || dateTo) {
       query.createdAt = {};
