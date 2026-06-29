@@ -128,7 +128,7 @@ const TYPE_LABELS = {
 // GET all customers
 router.get('/', async (req, res) => {
   try {
-    const { search, type, project, staff, owner, dateFrom, dateTo, contactedFrom, contactedTo, page = 1, limit = 50 } = req.query;
+    const { search, type, project, staff, owner, dateFrom, dateTo, contactedFrom, contactedTo, staffPhone, importedFrom, importedTo, page = 1, limit = 50 } = req.query;
     const query = {};
 
     if (search) {
@@ -210,6 +210,17 @@ router.get('/', async (req, res) => {
       query.lastContactedAt = {};
       if (contactedFrom) query.lastContactedAt.$gte = new Date(contactedFrom + 'T00:00:00+07:00');
       if (contactedTo)   query.lastContactedAt.$lte = new Date(contactedTo + 'T23:59:59+07:00');
+    }
+    if (staffPhone) {
+      const staffPhoneList = Array.isArray(staffPhone) ? staffPhone : staffPhone.split(',').map(s => s.trim()).filter(Boolean);
+      query.lastContactedBy = staffPhoneList.length === 1
+        ? { $regex: staffPhoneList[0], $options: 'i' }
+        : { $in: staffPhoneList };
+    }
+    if (importedFrom || importedTo) {
+      query.createdAt = {};
+      if (importedFrom) query.createdAt.$gte = new Date(importedFrom + 'T00:00:00+07:00');
+      if (importedTo)   query.createdAt.$lte = new Date(importedTo + 'T23:59:59+07:00');
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
