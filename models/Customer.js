@@ -16,6 +16,7 @@ const customerSchema = new mongoose.Schema({
   assignedStaff: { type: String, default: '' },
   owners: [{ name: { type: String }, photo: { type: String }, link: { type: String } }],
   images: { type: [mongoose.Schema.Types.Mixed], default: [] },
+  waBizPhone: { type: String, default: '' },
   contactedAt: { type: Date },
   lastContactedBy: { type: String, default: '' },
   lastContactedAt: { type: Date },

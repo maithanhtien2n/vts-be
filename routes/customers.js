@@ -10,6 +10,7 @@ const { authenticate } = require('../middleware/auth');
 const TRACKED_FIELDS = {
   name:          'ຊື່ລູກຄ້າ',
   phone:         'ເບີໂທ',
+  waBizPhone:    'ເບີໂທ WhatsApp Business',
   customerType:  'ປະເພດ',
   projects:      'ໂຄງການ',
   notes:         'ລາຍລະອຽດ',
@@ -380,6 +381,7 @@ router.get('/export/excel', async (req, res) => {
     sheet.columns = [
       { header: 'No.', key: 'no', width: 8 },
       { header: 'ເບີໂທ', key: 'phone', width: 16 },
+      { header: 'ເບີໂທ WA Biz', key: 'waBizPhone', width: 20 },
       { header: 'ຊື່ລູກຄ້າ', key: 'name', width: 24 },
       { header: 'ປະເພດ', key: 'customerType', width: 20 },
       { header: 'ໂຄງການ', key: 'projects', width: 24 },
@@ -400,6 +402,7 @@ router.get('/export/excel', async (req, res) => {
       const row = sheet.addRow({
         no: c.no,
         phone: c.phone,
+        waBizPhone: c.waBizPhone || '',
         name: c.name,
         customerType: (Array.isArray(c.customerType) ? c.customerType : [c.customerType]).map(t => TYPE_LABELS[t] || t).join(', '),
         projects: c.projects.map(p => p.name).join(', '),
