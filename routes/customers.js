@@ -8,16 +8,17 @@ const upload = require('../middleware/upload');
 const { authenticate } = require('../middleware/auth');
 
 const TRACKED_FIELDS = {
-  name:          'ຊື່ລູກຄ້າ',
-  phone:         'ເບີໂທ',
-  waBizPhone:    'ເບີໂທ WhatsApp Business',
-  customerType:  'ປະເພດ',
-  projects:      'ໂຄງການ',
-  notes:         'ລາຍລະອຽດ',
-  assignedStaff: 'ພະນັກງານ',
-  ownerName:     'ເຈົ້າຂອງລູກຄ້າ',
-  owners:        'ເຈົ້າຂອງລູກຄ້າ',
-  contactedAt:   'ວັນທີລູກຄ້າທັກມາ',
+  name:               'ຊື່ລູກຄ້າ',
+  phone:              'ເບີໂທ',
+  waBizPhone:         'ເບີໂທ WhatsApp Business',
+  customerType:       'ປະເພດ',
+  projects:           'ໂຄງການ',
+  notes:              'ລາຍລະອຽດ',
+  assignedStaff:      'ພະນັກງານ',
+  staffTrackingPhone: 'ເບີພະນັກງານດູແລ',
+  ownerName:          'ເຈົ້າຂອງລູກຄ້າ',
+  owners:             'ເຈົ້າຂອງລູກຄ້າ',
+  contactedAt:        'ວັນທີລູກຄ້າທັກມາ',
 };
 
 function toDateStr(val) {
@@ -85,6 +86,7 @@ async function upsertCustomer(data) {
   if (data.ownerLink     != null)   updateFields.ownerLink     = data.ownerLink;
   if (data.ownerPhoto    != null)   updateFields.ownerPhoto    = data.ownerPhoto;
   if (data.updatedBy)               updateFields.updatedBy     = data.updatedBy;
+  if (data.staffTrackingPhone != null) updateFields.staffTrackingPhone = data.staffTrackingPhone;
 
   const phone = String(data.phone || '').trim();
   const existing = await Customer.findOne({ phone }).lean();

@@ -14,6 +14,7 @@ const customerSchema = new mongoose.Schema({
   projects: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Project' }],
   notes: { type: String, default: '' },
   assignedStaff: { type: String, default: '' },
+  staffTrackingPhone: { type: String, default: '' },
   owners: [{ name: { type: String }, photo: { type: String }, link: { type: String } }],
   images: { type: [mongoose.Schema.Types.Mixed], default: [] },
   waBizPhone: { type: String, default: '' },
