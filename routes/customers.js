@@ -75,6 +75,13 @@ router.use(authenticate);
 
 // Upsert by phone: update safe fields only, preserve images/contactLog/no
 async function upsertCustomer(data) {
+  if (data.forceCreate) {
+    const customer = new Customer(data);
+    await customer.save();
+    await customer.populate('projects', 'name');
+    return { customer, created: true, before: null };
+  }
+
   const updateFields = {};
   if (data.name)                    updateFields.name          = data.name;
   if (data.customerType?.length)    updateFields.customerType  = data.customerType;
