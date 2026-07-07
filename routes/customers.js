@@ -203,7 +203,7 @@ router.get('/', async (req, res) => {
     }
     if (staff) {
       const staffList = Array.isArray(staff) ? staff : staff.split(',').map(s => s.trim()).filter(Boolean);
-      query.assignedStaff = staffList.length === 1
+      query.staffTrackingPhone = staffList.length === 1
         ? { $regex: staffList[0], $options: 'i' }
         : { $in: staffList };
     }
