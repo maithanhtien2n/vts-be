@@ -142,9 +142,14 @@ router.get('/', async (req, res) => {
     const query = {};
 
     if (search) {
+      // Normalize phone search: allow optional spaces between digits
+      const digits = search.replace(/\D/g, '');
+      const phoneRegex = digits.length >= 7
+        ? `^${digits.split('').join('\\s*')}$`
+        : search;
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
-        { phone: { $regex: search, $options: 'i' } },
+        { phone: { $regex: phoneRegex, $options: 'i' } },
         { notes: { $regex: search, $options: 'i' } }
       ];
     }
