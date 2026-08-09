@@ -141,17 +141,20 @@ router.get('/', async (req, res) => {
     const { search, type, project, staff, owner, dateFrom, dateTo, contactedFrom, contactedTo, staffPhone, importedFrom, importedTo, page = 1, limit = 50 } = req.query;
     const query = {};
 
+    // Build search filter separately so it doesn't get overwritten by role-based $or
+    let searchFilter = null;
     if (search) {
-      // Normalize phone search: allow optional spaces between digits
       const digits = search.replace(/\D/g, '');
       const phoneRegex = digits.length >= 7
         ? `^${digits.split('').join('\\s*')}$`
         : search;
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { phone: { $regex: phoneRegex, $options: 'i' } },
-        { notes: { $regex: search, $options: 'i' } }
-      ];
+      searchFilter = {
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { phone: { $regex: phoneRegex, $options: 'i' } },
+          { notes: { $regex: search, $options: 'i' } }
+        ]
+      };
     }
     if (type) {
       const types = Array.isArray(type) ? type : type.split(',').map(t => t.trim()).filter(Boolean);
@@ -172,7 +175,6 @@ router.get('/', async (req, res) => {
     ];
 
     if (isPartner) {
-      // Partner sees: customers in their assignedProjects OR assigned by name + no-project customers
       const partnerProjects = (req.user.assignedProjects ?? []).map(p => p.toString());
       const partnerName     = req.user.displayName || req.user.username || '';
 
@@ -197,14 +199,25 @@ router.get('/', async (req, res) => {
       if (requested.length) query.projects = requested.length === 1 ? requested[0] : { $in: requested };
       else if (staffProjects) query.projects = { $in: [] };
     } else if (staffProjects && staffProjects.length > 0) {
-      // Staff has projects → their projects + no-project customers
       query.$or = [
         { projects: { $in: staffProjects } },
         ...noProjectCluses,
       ];
     } else if (staffProjects && staffProjects.length === 0) {
-      // Staff has NO projects → only no-project customers
       query.$or = [...noProjectCluses];
+    }
+
+    // Merge search filter with role-based $or via $and
+    if (searchFilter) {
+      if (query.$or) {
+        query.$and = [
+          { $or: query.$or },
+          searchFilter
+        ];
+        delete query.$or;
+      } else {
+        Object.assign(query, searchFilter);
+      }
     }
     if (staff) {
       const staffList = Array.isArray(staff) ? staff : staff.split(',').map(s => s.trim()).filter(Boolean);
